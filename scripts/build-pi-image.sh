@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 # Build and push an ARM64 Docker image to GitHub Container Registry.
 #
+# Mirrors the upstream CI approach: yarn build:server runs on the host first,
+# then the lean alpine Dockerfile packages the output into the image.
+# This avoids running the full JS build inside Docker (slow, memory-heavy).
+#
 # Prerequisites:
+#   - Node.js >=22 and Yarn ^4.9.1
 #   - Docker with buildx and the containerd image store enabled
 #   - Authenticated to ghcr.io:
 #       echo $GITHUB_TOKEN | docker login ghcr.io -u <your-github-username> --password-stdin
@@ -20,7 +25,10 @@ IMAGE="ghcr.io/${GITHUB_USERNAME}/actual-server"
 TAG="${1:-latest}"
 FULL_IMAGE="${IMAGE}:${TAG}"
 
-echo "==> Building ${FULL_IMAGE} for linux/arm64"
+echo "==> Building JS/TS (yarn build:server)"
+yarn build:server
+
+echo "==> Building Docker image ${FULL_IMAGE} for linux/arm64"
 
 # Ensure the multi-platform builder exists
 if ! docker buildx inspect pi-builder &>/dev/null; then
@@ -30,7 +38,7 @@ fi
 docker buildx build \
   --builder pi-builder \
   --platform linux/arm64 \
-  --file sync-server.Dockerfile \
+  --file packages/sync-server/docker/alpine.Dockerfile \
   --tag "${FULL_IMAGE}" \
   --push \
   .
