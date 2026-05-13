@@ -1,0 +1,26 @@
+###################################################
+# Production compose file for Raspberry Pi deployment.
+# Replaces the official image with your fork's image
+# built via scripts/build-pi-image.sh and pushed to
+# GitHub Container Registry (ghcr.io).
+#
+# Usage on the Pi:
+#   docker compose -f docker-compose.pi.yml pull
+#   docker compose -f docker-compose.pi.yml up -d
+###################################################
+
+services:
+  actual:
+    image: ghcr.io/${GITHUB_USERNAME:-houlasley}/actual-server:latest
+    container_name: actual_budget
+    ports:
+      - "5006:5006"
+    volumes:
+      - ./actual/data:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'node build/scripts/health-check.js']
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
