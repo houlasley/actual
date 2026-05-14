@@ -17,7 +17,12 @@ export type TimeFrame = {
     | 'lastMonth'
     | 'lastYear'
     | 'yearToDate'
-    | 'priorYearToDate';
+    | 'priorYearToDate'
+    | 'next3months'
+    | 'next6months'
+    | 'next12months'
+    | 'last3next3months'
+    | 'last6next6months';
 };
 
 type AbstractWidget<

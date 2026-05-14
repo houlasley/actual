@@ -174,6 +174,32 @@ export function getLatestRange(offset: number) {
   return [start, end, 'sliding-window'] as const;
 }
 
+export function getNextMonthsRange(
+  n: number,
+): [string, string, TimeFrame['mode']] {
+  const start = monthUtils.currentMonth();
+  const end = monthUtils.addMonths(start, n);
+  const modeMap: Partial<Record<number, TimeFrame['mode']>> = {
+    3: 'next3months',
+    6: 'next6months',
+    12: 'next12months',
+  };
+  return [start, end, modeMap[n] ?? 'static'];
+}
+
+export function getStraddleRange(
+  n: number,
+): [string, string, TimeFrame['mode']] {
+  const current = monthUtils.currentMonth();
+  const start = monthUtils.subMonths(current, n);
+  const end = monthUtils.addMonths(current, n);
+  const modeMap: Partial<Record<number, TimeFrame['mode']>> = {
+    3: 'last3next3months',
+    6: 'last6next6months',
+  };
+  return [start, end, modeMap[n] ?? 'static'];
+}
+
 export function calculateTimeRange(
   timeFrame?: Partial<TimeFrame>,
   defaultTimeFrame?: TimeFrame,
@@ -236,6 +262,21 @@ export function calculateTimeRange(
       monthUtils.prevYear(monthUtils.currentDate(), 'yyyy-MM-dd'),
       'priorYearToDate',
     ] as const;
+  }
+  if (mode === 'next3months') {
+    return getNextMonthsRange(3);
+  }
+  if (mode === 'next6months') {
+    return getNextMonthsRange(6);
+  }
+  if (mode === 'next12months') {
+    return getNextMonthsRange(12);
+  }
+  if (mode === 'last3next3months') {
+    return getStraddleRange(3);
+  }
+  if (mode === 'last6next6months') {
+    return getStraddleRange(6);
   }
 
   return [start, end, 'static'] as const;
