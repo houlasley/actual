@@ -35,7 +35,11 @@ import { Change } from '#components/reports/Change';
 import { CashFlowGraph } from '#components/reports/graphs/CashFlowGraph';
 import { Header } from '#components/reports/Header';
 import { LoadingIndicator } from '#components/reports/LoadingIndicator';
-import { calculateTimeRange } from '#components/reports/reportRanges';
+import {
+  calculateTimeRange,
+  getNextMonthsRange,
+  getStraddleRange,
+} from '#components/reports/reportRanges';
 import { cashFlowByDate } from '#components/reports/spreadsheets/cash-flow-spreadsheet';
 import type { ScheduledCashFlowEntry } from '#components/reports/spreadsheets/cash-flow-spreadsheet';
 import { useReport } from '#components/reports/useReport';
@@ -243,10 +247,11 @@ function CashFlowInner({ widget }: CashFlowInnerProps) {
         ? monthUtils.monthFromDate(d.parseISO(latestTransaction.date))
         : currentMonth;
 
+      const futureMonth = monthUtils.addMonths(currentMonth, 12);
       const latestMonth =
-        latestTransactionMonth > currentMonth
+        latestTransactionMonth > futureMonth
           ? latestTransactionMonth
-          : currentMonth;
+          : futureMonth;
 
       const allMonths = monthUtils
         .rangeInclusive(earliestMonth, latestMonth)
@@ -402,6 +407,40 @@ function CashFlowInner({ widget }: CashFlowInnerProps) {
         onDeleteFilter={onDeleteFilter}
         conditionsOp={conditionsOp}
         onConditionsOpChange={onConditionsOpChange}
+        inlineContent={
+          <>
+            <Button
+              variant="bare"
+              onPress={() => onChangeDates(...getNextMonthsRange(3))}
+            >
+              <Trans>Next 3 months</Trans>
+            </Button>
+            <Button
+              variant="bare"
+              onPress={() => onChangeDates(...getNextMonthsRange(6))}
+            >
+              <Trans>Next 6 months</Trans>
+            </Button>
+            <Button
+              variant="bare"
+              onPress={() => onChangeDates(...getNextMonthsRange(12))}
+            >
+              <Trans>Next 12 months</Trans>
+            </Button>
+            <Button
+              variant="bare"
+              onPress={() => onChangeDates(...getStraddleRange(3))}
+            >
+              <Trans>Last 3 + Next 3</Trans>
+            </Button>
+            <Button
+              variant="bare"
+              onPress={() => onChangeDates(...getStraddleRange(6))}
+            >
+              <Trans>Last 6 + Next 6</Trans>
+            </Button>
+          </>
+        }
       >
         <View style={{ flexDirection: 'row', gap: 10 }}>
           <Button onPress={() => setShowBalance(state => !state)}>
