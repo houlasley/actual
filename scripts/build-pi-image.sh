@@ -16,7 +16,7 @@
 #   docker compose -f docker-compose.pi.yml pull
 #   docker compose -f docker-compose.pi.yml up -d
 
-set -euo pipefail
+set -eu
 
 GITHUB_USERNAME="${GITHUB_USERNAME:-houlasley}"
 IMAGE="ghcr.io/${GITHUB_USERNAME}/actual-server"
@@ -26,7 +26,7 @@ FULL_IMAGE="${IMAGE}:${TAG}"
 echo "==> Building ${FULL_IMAGE} for linux/arm64"
 
 # Ensure the multi-platform builder exists
-if ! docker buildx inspect pi-builder &>/dev/null; then
+if ! docker buildx inspect pi-builder >/dev/null 2>&1; then
   docker buildx create --name pi-builder --driver docker-container --bootstrap
 fi
 

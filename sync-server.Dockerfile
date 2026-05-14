@@ -1,11 +1,10 @@
-FROM node:22-bookworm AS deps
+# ── Build stages run on the host platform (no QEMU emulation) ────────────────
+FROM --platform=$BUILDPLATFORM node:22-bookworm AS deps
 
-# Install required packages
 RUN apt-get update && apt-get install -y openssl
 
 WORKDIR /app
 
-# Copy only the files needed for installing dependencies
 COPY .yarn ./.yarn
 COPY yarn.lock package.json .yarnrc.yml tsconfig.json ./
 COPY packages/api/package.json packages/api/package.json
@@ -20,28 +19,50 @@ COPY packages/plugins-service/package.json packages/plugins-service/package.json
 
 COPY ./bin/package-browser ./bin/package-browser
 
-RUN yarn install
+RUN --mount=type=cache,target=/root/.yarn/berry/cache \
+    yarn install
 
-FROM deps AS builder
+FROM --platform=$BUILDPLATFORM deps AS builder
 
 WORKDIR /app
 
 COPY packages/ ./packages/
 
-# Increase memory limit for the build process to 8GB
 ENV NODE_OPTIONS=--max_old_space_size=8192
 
-RUN yarn build:server
+# Build directly instead of via `yarn build:server` (which calls lage).
+# lage requires glob-hasher-linux-arm64-gnu, a native binary absent from the
+# lockfile (generated on macOS). All workspace deps export TS source so vite
+# resolves them without a separate pre-build step.
+RUN --mount=type=cache,target=/app/packages/desktop-client/node_modules/.vite \
+    yarn workspace plugins-service build && \
+    yarn workspace @actual-app/web build:browser && \
+    yarn workspace @actual-app/sync-server build
 
-# Focus the workspaces in production mode (including @actual-app/web you just built)
-RUN yarn workspaces focus @actual-app/sync-server --production
+# ── Production deps stage runs on the TARGET platform (arm64 for Pi) ─────────
+# Only installs npm packages + compiles native modules — no big JS builds.
+FROM node:22-bookworm AS prod-deps
 
-# Remove symbolic links for @actual-app/web and @actual-app/sync-server
-RUN rm -rf ./node_modules/@actual-app/web ./node_modules/@actual-app/sync-server
+RUN apt-get update && apt-get install -y openssl
 
-# Copy in the @actual-app/web artifacts manually, so we don't need the entire packages folder
-COPY ./packages/desktop-client/package.json ./node_modules/@actual-app/web/package.json
-RUN cp -r ./packages/desktop-client/build ./node_modules/@actual-app/web/build
+WORKDIR /app
+
+COPY .yarn ./.yarn
+COPY yarn.lock package.json .yarnrc.yml tsconfig.json ./
+COPY packages/api/package.json packages/api/package.json
+COPY packages/component-library/package.json packages/component-library/package.json
+COPY packages/crdt/package.json packages/crdt/package.json
+COPY packages/desktop-client/package.json packages/desktop-client/package.json
+COPY packages/desktop-electron/package.json packages/desktop-electron/package.json
+COPY packages/eslint-plugin-actual/package.json packages/eslint-plugin-actual/package.json
+COPY packages/loot-core/package.json packages/loot-core/package.json
+COPY packages/sync-server/package.json packages/sync-server/package.json
+COPY packages/plugins-service/package.json packages/plugins-service/package.json
+
+COPY ./bin/package-browser ./bin/package-browser
+
+RUN --mount=type=cache,target=/root/.yarn/berry/cache \
+    yarn workspaces focus @actual-app/sync-server --production
 
 FROM node:22-bookworm-slim AS prod
 
@@ -59,10 +80,14 @@ RUN groupadd --gid $USER_GID $USERNAME \
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Pull in only the necessary artifacts (built node_modules, server files, etc.)
-COPY --from=builder /app/node_modules /app/node_modules
+# node_modules from prod-deps (arm64 native modules), JS artifacts from builder
+COPY --from=prod-deps /app/node_modules /app/node_modules
 COPY --from=builder /app/packages/sync-server/package.json ./
 COPY --from=builder /app/packages/sync-server/build ./build
+
+# Wire up the web frontend (symlink was removed; copy build artifacts directly)
+COPY --from=builder /app/packages/desktop-client/package.json /app/node_modules/@actual-app/web/package.json
+COPY --from=builder /app/packages/desktop-client/build /app/node_modules/@actual-app/web/build
 
 ENTRYPOINT ["/usr/bin/tini", "-g", "--"]
 EXPOSE 5006
