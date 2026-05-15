@@ -14,7 +14,7 @@ services:
     image: ghcr.io/${GITHUB_USERNAME:-houlasley}/actual-server:latest
     container_name: actual_budget
     ports:
-      - "5006:5006"
+      - '5006:5006'
     volumes:
       - ./actual/data:/data
     healthcheck:

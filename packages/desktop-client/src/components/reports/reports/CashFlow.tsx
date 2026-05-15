@@ -407,40 +407,6 @@ function CashFlowInner({ widget }: CashFlowInnerProps) {
         onDeleteFilter={onDeleteFilter}
         conditionsOp={conditionsOp}
         onConditionsOpChange={onConditionsOpChange}
-        inlineContent={
-          <>
-            <Button
-              variant="bare"
-              onPress={() => onChangeDates(...getNextMonthsRange(3))}
-            >
-              <Trans>Next 3 months</Trans>
-            </Button>
-            <Button
-              variant="bare"
-              onPress={() => onChangeDates(...getNextMonthsRange(6))}
-            >
-              <Trans>Next 6 months</Trans>
-            </Button>
-            <Button
-              variant="bare"
-              onPress={() => onChangeDates(...getNextMonthsRange(12))}
-            >
-              <Trans>Next 12 months</Trans>
-            </Button>
-            <Button
-              variant="bare"
-              onPress={() => onChangeDates(...getStraddleRange(3))}
-            >
-              <Trans>Last 3 + Next 3</Trans>
-            </Button>
-            <Button
-              variant="bare"
-              onPress={() => onChangeDates(...getStraddleRange(6))}
-            >
-              <Trans>Last 6 + Next 6</Trans>
-            </Button>
-          </>
-        }
       >
         <View style={{ flexDirection: 'row', gap: 10 }}>
           <Button onPress={() => setShowBalance(state => !state)}>
@@ -454,6 +420,49 @@ function CashFlowInner({ widget }: CashFlowInnerProps) {
           )}
         </View>
       </Header>
+      <View
+        style={{
+          paddingLeft: 20,
+          paddingRight: 20,
+          paddingBottom: 10,
+          flexShrink: 0,
+          flexDirection: 'row',
+          flexWrap: 'wrap',
+          gap: 5,
+          borderBottom: `1px solid ${theme.tableBorder}`,
+        }}
+      >
+        <Button
+          variant="bare"
+          onPress={() => onChangeDates(...getNextMonthsRange(3))}
+        >
+          <Trans>Next 3 months</Trans>
+        </Button>
+        <Button
+          variant="bare"
+          onPress={() => onChangeDates(...getNextMonthsRange(6))}
+        >
+          <Trans>Next 6 months</Trans>
+        </Button>
+        <Button
+          variant="bare"
+          onPress={() => onChangeDates(...getNextMonthsRange(12))}
+        >
+          <Trans>Next 12 months</Trans>
+        </Button>
+        <Button
+          variant="bare"
+          onPress={() => onChangeDates(...getStraddleRange(3))}
+        >
+          <Trans>Last 3 + Next 3</Trans>
+        </Button>
+        <Button
+          variant="bare"
+          onPress={() => onChangeDates(...getStraddleRange(6))}
+        >
+          <Trans>Last 6 + Next 6</Trans>
+        </Button>
+      </View>
       <View
         style={{
           backgroundColor: theme.tableBackground,
