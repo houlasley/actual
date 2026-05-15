@@ -38,6 +38,7 @@ import { UserDirectoryPage } from './responsive/wide';
 import { useMultiuserEnabled } from './ServerContext';
 import { Settings } from './settings';
 import { FloatableSidebar } from './sidebar';
+import { SecuritiesPage } from './securities/SecuritiesPage';
 import { ManageTagsPage } from './tags/ManageTagsPage';
 import { Titlebar } from './Titlebar';
 
@@ -323,6 +324,14 @@ export function FinancesApp() {
                   }
                 />
                 <Route path="/tags" element={<ManageTagsPage />} />
+                <Route
+                  path="/securities"
+                  element={
+                    <NarrowNotSupported>
+                      <SecuritiesPage />
+                    </NarrowNotSupported>
+                  }
+                />
                 <Route path="/settings" element={<Settings />} />
 
                 <Route

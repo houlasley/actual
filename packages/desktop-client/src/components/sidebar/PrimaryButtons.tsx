@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router';
 
 import {
+  SvgChartArea,
   SvgCheveronDown,
   SvgCheveronRight,
   SvgCog,
@@ -38,6 +39,7 @@ export function PrimaryButtons() {
     '/bank-sync',
     '/settings',
     '/tools',
+    '/securities',
   ].some(route => location.pathname.startsWith(route));
 
   useEffect(() => {
@@ -84,6 +86,12 @@ export function PrimaryButtons() {
             title={t('Tags')}
             Icon={SvgTag}
             to="/tags"
+            indent={15}
+          />
+          <SecondaryItem
+            title={t('Securities')}
+            Icon={SvgChartArea}
+            to="/securities"
             indent={15}
           />
           <SecondaryItem
