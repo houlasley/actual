@@ -223,7 +223,7 @@ export function Accounts() {
               <Block style={{ marginLeft: 8, color: 'inherit' }}>
                 {isServerOffline
                   ? t('Bank Sync Offline')
-                  : t('Sync all accounts')}
+                  : t('Sync all bank accounts')}
               </Block>
             </Button>
           </View>
