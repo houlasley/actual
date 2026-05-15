@@ -45,6 +45,7 @@ import {
   useUpdateAccountMutation,
 } from '#accounts';
 import { markAccountRead } from '#accounts/accountsSlice';
+import { InvestmentAccount } from '#components/accounts/investment/InvestmentAccount';
 import { FeatureErrorFallback } from '#components/FeatureErrorFallback';
 import type { SavedFilter } from '#components/filters/SavedFilterMenuButton';
 import { TransactionList } from '#components/transactions/TransactionList';
@@ -2032,6 +2033,11 @@ export function Account() {
   const createPayee = useCreatePayeeMutation();
   const onCreatePayee = (name: PayeeEntity['name']) =>
     createPayee.mutateAsync({ name });
+
+  const currentAccount = accounts.find(a => a.id === params.id);
+  if (currentAccount?.is_investment) {
+    return <InvestmentAccount accountId={currentAccount.id} />;
+  }
 
   return (
     <ErrorBoundary FallbackComponent={FeatureErrorFallback}>

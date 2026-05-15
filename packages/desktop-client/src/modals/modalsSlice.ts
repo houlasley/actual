@@ -58,6 +58,14 @@ export type Modal =
       name: 'add-local-account';
     }
   | {
+      name: 'holding-edit';
+      options: { accountId: string; holdingId?: string };
+    }
+  | {
+      name: 'manage-securities';
+      options: object;
+    }
+  | {
       name: 'close-account';
       options: {
         account: AccountEntity;

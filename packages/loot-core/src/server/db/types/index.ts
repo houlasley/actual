@@ -24,6 +24,7 @@ export type DbAccount = {
   account_sync_source?: 'simpleFin' | 'goCardless' | null;
   last_reconciled?: string | null;
   last_sync?: string | null;
+  is_investment: 1 | 0;
 };
 
 export type DbBank = {
@@ -348,5 +349,31 @@ export type DbTag = {
   tag: string;
   color?: string | null;
   description?: string | null;
+  tombstone: 1 | 0;
+};
+
+export type DbSecurity = {
+  id: string;
+  ticker: string;
+  name?: string | null;
+  type?: string | null;
+  sort_order: number;
+  tombstone: 1 | 0;
+};
+
+export type DbHolding = {
+  id: string;
+  account: DbAccount['id'];
+  security: DbSecurity['id'];
+  shares: number;
+  cost_basis: number;
+  tombstone: 1 | 0;
+};
+
+export type DbSecurityPrice = {
+  id: string;
+  security: DbSecurity['id'];
+  date: number;
+  price: number;
   tombstone: 1 | 0;
 };
