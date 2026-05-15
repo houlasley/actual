@@ -1,8 +1,8 @@
 // @ts-strict-ignore
+import { app as accountsApp } from '#server/accounts/app';
 import * as db from '#server/db';
 import * as monthUtils from '#shared/months';
 import { priceToInteger, sharesToInteger } from '#shared/securities';
-import { app as accountsApp } from '#server/accounts/app';
 
 import { app } from './app';
 

@@ -21,6 +21,7 @@
     "#queries": "./src/queries/index.ts",
     "#redux": "./src/redux/index.ts",
     "#reports": "./src/reports/index.ts",
+    "#securities": "./src/securities/index.ts",
     "#spreadsheet": "./src/spreadsheet/index.ts",
     "#style": "./src/style/index.ts",
     "#tags": "./src/tags/index.ts",

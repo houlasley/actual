@@ -49,6 +49,7 @@ import { GoalTemplateModal } from './modals/GoalTemplateModal';
 import { GoCardlessExternalMsgModal } from './modals/GoCardlessExternalMsgModal';
 import { GoCardlessInitialiseModal } from './modals/GoCardlessInitialiseModal';
 import { HoldBufferModal } from './modals/HoldBufferModal';
+import { HoldingEditModal } from './modals/HoldingEditModal';
 import { ImportTransactionsModal } from './modals/ImportTransactionsModal';
 import { KeyboardShortcutModal } from './modals/KeyboardShortcutModal';
 import { LoadBackupModal } from './modals/LoadBackupModal';
@@ -61,6 +62,7 @@ import { ImportModal } from './modals/manager/ImportModal';
 import { ImportYNAB4Modal } from './modals/manager/ImportYNAB4Modal';
 import { ImportYNAB5Modal } from './modals/manager/ImportYNAB5Modal';
 import { ManageRulesModal } from './modals/ManageRulesModal';
+import { ManageSecuritiesModal } from './modals/ManageSecuritiesModal';
 import { MergeUnusedPayeesModal } from './modals/MergeUnusedPayeesModal';
 import { NewCategoryGroupModal } from './modals/NewCategoryGroupModal';
 import { NewCategoryModal } from './modals/NewCategoryModal';
@@ -133,6 +135,18 @@ export function Modals() {
 
         case 'add-local-account':
           return <CreateLocalAccountModal key={key} />;
+
+        case 'holding-edit':
+          return (
+            <HoldingEditModal
+              key={key}
+              accountId={modal.options.accountId}
+              holdingId={modal.options.holdingId}
+            />
+          );
+
+        case 'manage-securities':
+          return <ManageSecuritiesModal key={key} />;
 
         case 'close-account':
           return <CloseAccountModal key={key} {...modal.options} />;

@@ -37,7 +37,10 @@ export function CreateLocalAccountModal() {
   const { data: accounts = [] } = useAccounts();
   const [name, setName] = useState('');
   const [offbudget, setOffbudget] = useState(false);
+  const [isInvestment, setIsInvestment] = useState(false);
   const [balance, setBalance] = useState('0');
+
+  const effectiveOffbudget = offbudget || isInvestment;
 
   const [nameError, setNameError] = useState(null);
   const [balanceError, setBalanceError] = useState(false);
@@ -69,7 +72,8 @@ export function CreateLocalAccountModal() {
         {
           name,
           balance: toRelaxedNumber(balance),
-          offBudget: offbudget,
+          offBudget: offbudget || isInvestment,
+          isInvestment,
         },
         {
           onSuccess: id => {
@@ -127,9 +131,47 @@ export function CreateLocalAccountModal() {
                     }}
                   >
                     <Checkbox
+                      id="isInvestment"
+                      name="isInvestment"
+                      checked={isInvestment}
+                      onChange={() => setIsInvestment(!isInvestment)}
+                    />
+                    <label
+                      htmlFor="isInvestment"
+                      style={{
+                        userSelect: 'none',
+                        verticalAlign: 'center',
+                      }}
+                    >
+                      <Trans>Investment account</Trans>
+                    </label>
+                  </View>
+                  <div
+                    style={{
+                      textAlign: 'right',
+                      fontSize: '0.7em',
+                      color: theme.pageTextLight,
+                      marginTop: 3,
+                    }}
+                  >
+                    <Text>
+                      <Trans>
+                        Tracks securities and holdings. Always off budget.
+                      </Trans>
+                    </Text>
+                  </div>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      justifyContent: 'flex-end',
+                      marginTop: 10,
+                    }}
+                  >
+                    <Checkbox
                       id="offbudget"
                       name="offbudget"
-                      checked={offbudget}
+                      checked={effectiveOffbudget}
+                      disabled={isInvestment}
                       onChange={() => setOffbudget(!offbudget)}
                     />
                     <label
