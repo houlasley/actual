@@ -461,16 +461,23 @@ async function createAccount({
   balance = 0,
   offBudget = false,
   closed = false,
+  isInvestment = false,
 }: {
   name: string;
   balance?: number | undefined;
   offBudget?: boolean | undefined;
   closed?: boolean | undefined;
+  isInvestment?: boolean | undefined;
 }) {
+  // Investment accounts track holdings, not a cash ledger, so they are
+  // always off-budget and never get a starting-balance transaction.
+  const accountOffBudget = isInvestment ? true : offBudget;
+
   const id: AccountEntity['id'] = await db.insertAccount({
     name,
-    offbudget: offBudget ? 1 : 0,
+    offbudget: accountOffBudget ? 1 : 0,
     closed: closed ? 1 : 0,
+    is_investment: isInvestment ? 1 : 0,
   });
 
   await db.insertPayee({
@@ -478,13 +485,13 @@ async function createAccount({
     transfer_acct: id,
   });
 
-  if (balance != null && balance !== 0) {
+  if (!isInvestment && balance != null && balance !== 0) {
     const payee = await getStartingBalancePayee();
 
     await db.insertTransaction({
       account: id,
       amount: amountToInteger(balance),
-      category: offBudget ? null : payee.category,
+      category: accountOffBudget ? null : payee.category,
       payee: payee.id,
       date: monthUtils.currentDay(),
       cleared: true,
