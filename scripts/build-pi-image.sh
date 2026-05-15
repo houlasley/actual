@@ -39,6 +39,7 @@ docker buildx build \
   --platform linux/arm64 \
   --file sync-server.Dockerfile \
   --tag "${FULL_IMAGE}" \
+  --provenance=false \
   --push \
   $NO_CACHE \
   .
