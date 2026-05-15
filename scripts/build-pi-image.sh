@@ -10,11 +10,8 @@
 #       echo $GITHUB_TOKEN | docker login ghcr.io -u <your-github-username> --password-stdin
 #
 # Usage:
-#   ./scripts/build-pi-image.sh [tag]      # default tag: latest
-#
-# After pushing, run on the Pi:
-#   docker compose -f docker-compose.pi.yml pull
-#   docker compose -f docker-compose.pi.yml up -d
+#   ./scripts/build-pi-image.sh [tag]            # default tag: latest
+#   ./scripts/build-pi-image.sh [tag] --no-cache # force full rebuild
 
 set -eu
 
@@ -22,8 +19,15 @@ GITHUB_USERNAME="${GITHUB_USERNAME:-houlasley}"
 IMAGE="ghcr.io/${GITHUB_USERNAME}/actual-server"
 TAG="${1:-latest}"
 FULL_IMAGE="${IMAGE}:${TAG}"
+NO_CACHE=""
 
-echo "==> Building ${FULL_IMAGE} for linux/arm64"
+for arg in "$@"; do
+  if [ "$arg" = "--no-cache" ]; then
+    NO_CACHE="--no-cache"
+  fi
+done
+
+echo "==> Building ${FULL_IMAGE} for linux/arm64${NO_CACHE:+ (no cache)}"
 
 # Ensure the multi-platform builder exists
 if ! docker buildx inspect pi-builder >/dev/null 2>&1; then
@@ -36,10 +40,11 @@ docker buildx build \
   --file sync-server.Dockerfile \
   --tag "${FULL_IMAGE}" \
   --push \
+  $NO_CACHE \
   .
 
 echo ""
 echo "==> Done. Image pushed: ${FULL_IMAGE}"
 echo ""
 echo "To deploy on your Pi:"
-echo "  ssh pi 'cd ~/actual && docker compose -f docker-compose.pi.yml pull && docker compose -f docker-compose.pi.yml up -d'"
+echo "  docker compose pull actual_custom && docker compose up -d actual_custom"
