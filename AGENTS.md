@@ -637,3 +637,6 @@ When running the app for manual testing or demos, use **"View demo"** on the ini
 - Lage caches test results in `.lage/`. If tests behave unexpectedly, clear with `rm -rf .lage`.
 - Native modules (`better-sqlite3`, `bcrypt`) require build tools (`gcc`, `make`, `python3`). These are pre-installed in the Cloud VM.
 - All yarn commands must be run from the repository root, never from child workspaces.
+
+
+Use Test Driven Development to guide development
