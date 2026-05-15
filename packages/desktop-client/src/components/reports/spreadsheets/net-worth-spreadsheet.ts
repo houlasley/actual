@@ -19,6 +19,34 @@ type Balance = {
   amount: number;
 };
 
+function getIntervalKeys(
+  startDate: string,
+  endDate: string,
+  interval: string,
+  firstDayOfWeekIdx: string,
+): string[] {
+  return interval === 'Weekly'
+    ? monthUtils.weekRangeInclusive(startDate, endDate, firstDayOfWeekIdx)
+    : interval === 'Daily'
+      ? monthUtils.dayRangeInclusive(startDate, endDate)
+      : interval === 'Yearly'
+        ? monthUtils.yearRangeInclusive(startDate, endDate)
+        : monthUtils.rangeInclusive(
+            monthUtils.getMonth(startDate),
+            monthUtils.getMonth(endDate),
+          );
+}
+
+// The representative "as of" date for an interval key, used to value
+// investment holdings at the end of each period.
+function intervalKeyToDate(key: string, interval: string): string {
+  return interval === 'Yearly'
+    ? `${key}-12-31`
+    : interval === 'Daily' || interval === 'Weekly'
+      ? key
+      : monthUtils.lastDayOfMonth(key);
+}
+
 export function createSpreadsheet(
   start: string,
   end: string,
@@ -96,6 +124,37 @@ export function createSpreadsheet(
 
     const data = await Promise.all(
       accounts.map(async acct => {
+        // Investment accounts have no transactions; their value at each
+        // interval is the holdings market value as of that period.
+        if (acct.is_investment) {
+          const intervalKeys = getIntervalKeys(
+            startDate,
+            endDate,
+            interval,
+            firstDayOfWeekIdx,
+          );
+          const series: Array<{ date: string; value: number }> = await send(
+            'holdings-value',
+            {
+              accountId: acct.id,
+              dates: intervalKeys.map(key => intervalKeyToDate(key, interval)),
+            },
+          );
+          const values: Record<string, number> = {};
+          intervalKeys.forEach((key, idx) => {
+            values[key] = series[idx]?.value ?? 0;
+          });
+
+          return {
+            id: acct.id,
+            name: acct.name,
+            balances: {},
+            starting: 0,
+            isInvestment: true,
+            values,
+          };
+        }
+
         const [starting, balances]: [number, Balance[]] = await Promise.all([
           aqlQuery(
             q('transactions')
@@ -189,6 +248,8 @@ function recalculate(
     name: string;
     balances: Record<string, Balance>;
     starting: number;
+    isInvestment?: boolean;
+    values?: Record<string, number>;
   }>,
   startDate: string,
   endDate: string,
@@ -198,19 +259,25 @@ function recalculate(
   format: (value: unknown, type?: FormatType) => string,
 ) {
   // Get intervals using the same pattern as other working spreadsheets
-  const intervals =
-    interval === 'Weekly'
-      ? monthUtils.weekRangeInclusive(startDate, endDate, firstDayOfWeekIdx)
-      : interval === 'Daily'
-        ? monthUtils.dayRangeInclusive(startDate, endDate)
-        : interval === 'Yearly'
-          ? monthUtils.yearRangeInclusive(startDate, endDate)
-          : monthUtils.rangeInclusive(
-              monthUtils.getMonth(startDate),
-              monthUtils.getMonth(endDate),
-            );
+  const intervals = getIntervalKeys(
+    startDate,
+    endDate,
+    interval,
+    firstDayOfWeekIdx,
+  );
 
   const accountBalances = data.map(account => {
+    if (account.isInvestment) {
+      let lastValue = 0;
+      return intervals.map(intervalItem => {
+        const value = account.values?.[intervalItem];
+        if (value != null) {
+          lastValue = value;
+        }
+        return lastValue;
+      });
+    }
+
     let balance = account.starting;
     return intervals.map(intervalItem => {
       if (account.balances[intervalItem]) {
@@ -221,7 +288,11 @@ function recalculate(
   });
 
   const priorPeriodNetWorth = data.reduce(
-    (sum, account) => sum + account.starting,
+    (sum, account) =>
+      sum +
+      (account.isInvestment
+        ? (account.values?.[intervals[0]] ?? 0)
+        : account.starting),
     0,
   );
 
