@@ -1,22 +1,26 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { Block } from '@actual-app/components/block';
+import { Button } from '@actual-app/components/button';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 import type { AccountEntity } from '@actual-app/core/types/models';
 
-import { useMoveAccountMutation } from '#accounts';
+import { useMoveAccountMutation, useSyncAndDownloadMutation } from '#accounts';
+import { AnimatedRefresh } from '#components/AnimatedRefresh';
 import { useAccounts } from '#hooks/useAccounts';
 import { useClosedAccounts } from '#hooks/useClosedAccounts';
 import { useFailedAccounts } from '#hooks/useFailedAccounts';
 import { useLocalPref } from '#hooks/useLocalPref';
 import { useOffBudgetAccounts } from '#hooks/useOffBudgetAccounts';
 import { useOnBudgetAccounts } from '#hooks/useOnBudgetAccounts';
+import { useSyncServerStatus } from '#hooks/useSyncServerStatus';
 import { useUpdatedAccounts } from '#hooks/useUpdatedAccounts';
 import { useSelector } from '#redux';
 import * as bindings from '#spreadsheet/bindings';
 
-import { Account } from './Account';
+import { Account, accountNameStyle } from './Account';
 import { SecondaryItem } from './SecondaryItem';
 
 const fontWeight = 600;
@@ -31,6 +35,13 @@ export function Accounts() {
   const { data: onBudgetAccounts = [] } = useOnBudgetAccounts();
   const { data: closedAccounts = [] } = useClosedAccounts();
   const syncingAccountIds = useSelector(state => state.account.accountsSyncing);
+  const syncServerStatus = useSyncServerStatus();
+  const isServerOffline = syncServerStatus === 'offline';
+  const { mutate: syncAndDownload } = useSyncAndDownloadMutation();
+
+  const connectedAccounts = accounts.filter(
+    ({ bank, closed, tombstone }) => !!bank && !closed && !tombstone,
+  );
 
   const getAccountPath = (account: AccountEntity) => `/accounts/${account.id}`;
 
@@ -189,6 +200,34 @@ export function Accounts() {
               onDrop={onReorder}
             />
           ))}
+
+        {connectedAccounts.length > 0 && (
+          <View style={{ flexShrink: 0, marginTop: 8 }}>
+            <Button
+              variant="bare"
+              isDisabled={isServerOffline}
+              onPress={() => syncAndDownload({})}
+              style={{
+                ...accountNameStyle,
+                color: theme.sidebarItemText,
+                paddingLeft: 14,
+                width: '100%',
+                justifyContent: 'flex-start',
+              }}
+            >
+              <AnimatedRefresh
+                width={12}
+                height={12}
+                animating={syncingAccountIds.length > 0}
+              />
+              <Block style={{ marginLeft: 8, color: 'inherit' }}>
+                {isServerOffline
+                  ? t('Bank Sync Offline')
+                  : t('Sync all accounts')}
+              </Block>
+            </Button>
+          </View>
+        )}
       </View>
     </View>
   );
