@@ -328,10 +328,7 @@ function recalculate(
               }
             />
             {projected && (
-              <AlignedText
-                left={t('(Projected)')}
-                right={<FinancialText />}
-              />
+              <AlignedText left={t('(Projected)')} right={<FinancialText />} />
             )}
           </div>
         </div>
