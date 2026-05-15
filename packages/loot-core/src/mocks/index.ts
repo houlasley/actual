@@ -19,6 +19,7 @@ export function generateAccount(
     id: uuidv4(),
     name,
     offbudget: offbudget ? 1 : 0,
+    is_investment: 0,
     sort_order: 0,
     last_reconciled: null,
     tombstone: 0,

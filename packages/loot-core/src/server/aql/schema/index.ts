@@ -77,6 +77,7 @@ export const schema = {
     account_sync_source: f('string'),
     last_reconciled: f('string'),
     last_sync: f('string'),
+    is_investment: f('boolean'),
   },
   categories: {
     id: f('id'),
@@ -211,6 +212,29 @@ export const schema = {
     latitude: f('float', { required: true }),
     longitude: f('float', { required: true }),
     created_at: f('integer', { required: true }),
+    tombstone: f('boolean'),
+  },
+  securities: {
+    id: f('id'),
+    ticker: f('string', { required: true }),
+    name: f('string'),
+    type: f('string'),
+    sort_order: f('float'),
+    tombstone: f('boolean'),
+  },
+  holdings: {
+    id: f('id'),
+    account: f('id', { ref: 'accounts', required: true }),
+    security: f('id', { ref: 'securities', required: true }),
+    shares: f('integer', { default: 0 }),
+    cost_basis: f('integer', { default: 0 }),
+    tombstone: f('boolean'),
+  },
+  security_prices: {
+    id: f('id'),
+    security: f('id', { ref: 'securities', required: true }),
+    date: f('date', { required: true }),
+    price: f('integer', { default: 0 }),
     tombstone: f('boolean'),
   },
 };

@@ -108,6 +108,7 @@ async function getAccounts(): Promise<AccountEntity[]> {
         name: dbAccount.name,
         offbudget: dbAccount.offbudget,
         closed: dbAccount.closed,
+        is_investment: dbAccount.is_investment ? 1 : 0,
         sort_order: dbAccount.sort_order,
         last_reconciled: dbAccount.last_reconciled ?? null,
         tombstone: dbAccount.tombstone,

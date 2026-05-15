@@ -46,8 +46,11 @@ import type {
   DbCategoryGroup,
   DbCategoryMapping,
   DbClockMessage,
+  DbHolding,
   DbPayee,
   DbPayeeMapping,
+  DbSecurity,
+  DbSecurityPrice,
   DbTag,
   DbTransaction,
   DbViewTransaction,
@@ -993,4 +996,118 @@ export function findTags() {
     `,
     ['%#%'],
   );
+}
+
+export function getSecurities() {
+  return all<DbSecurity>(`
+    SELECT * FROM securities
+    WHERE tombstone = 0
+    ORDER BY ticker COLLATE NOCASE, id
+  `);
+}
+
+export function getSecurity(id: DbSecurity['id']) {
+  return first<DbSecurity>(`SELECT * FROM securities WHERE id = ?`, [id]);
+}
+
+export function getSecurityByTicker(ticker: DbSecurity['ticker']) {
+  return first<DbSecurity>(
+    `SELECT * FROM securities WHERE UNICODE_LOWER(ticker) = ? AND tombstone = 0`,
+    [ticker.toLowerCase()],
+  );
+}
+
+export function insertSecurity(security): Promise<DbSecurity['id']> {
+  return insertWithUUID('securities', security);
+}
+
+export function updateSecurity(security) {
+  return update('securities', security);
+}
+
+export function deleteSecurity(security: Pick<DbSecurity, 'id'>) {
+  return delete_('securities', security.id);
+}
+
+export function getHoldings(accountId: DbHolding['account']) {
+  return all<DbHolding>(
+    `SELECT * FROM holdings WHERE account = ? AND tombstone = 0 ORDER BY id`,
+    [accountId],
+  );
+}
+
+export function getAllHoldings() {
+  return all<DbHolding>(
+    `SELECT * FROM holdings WHERE tombstone = 0 ORDER BY id`,
+  );
+}
+
+export function getHolding(id: DbHolding['id']) {
+  return first<DbHolding>(`SELECT * FROM holdings WHERE id = ?`, [id]);
+}
+
+export function getHoldingByAccountSecurity(
+  accountId: DbHolding['account'],
+  securityId: DbHolding['security'],
+) {
+  return first<DbHolding>(
+    `SELECT * FROM holdings WHERE account = ? AND security = ? AND tombstone = 0`,
+    [accountId, securityId],
+  );
+}
+
+export function insertHolding(holding): Promise<DbHolding['id']> {
+  return insertWithUUID('holdings', holding);
+}
+
+export function updateHolding(holding) {
+  return update('holdings', holding);
+}
+
+export function deleteHolding(holding: Pick<DbHolding, 'id'>) {
+  return delete_('holdings', holding.id);
+}
+
+export function getSecurityPrices(securityId: DbSecurityPrice['security']) {
+  return all<DbSecurityPrice>(
+    `SELECT * FROM security_prices
+       WHERE security = ? AND tombstone = 0
+       ORDER BY date`,
+    [securityId],
+  );
+}
+
+export function getSecurityPriceOn(
+  securityId: DbSecurityPrice['security'],
+  date: DbSecurityPrice['date'],
+) {
+  return first<DbSecurityPrice>(
+    `SELECT * FROM security_prices
+       WHERE security = ? AND date = ? AND tombstone = 0`,
+    [securityId, date],
+  );
+}
+
+export function getSecurityPriceAsOf(
+  securityId: DbSecurityPrice['security'],
+  date: DbSecurityPrice['date'],
+) {
+  return first<DbSecurityPrice>(
+    `SELECT * FROM security_prices
+       WHERE security = ? AND date <= ? AND tombstone = 0
+       ORDER BY date DESC LIMIT 1`,
+    [securityId, date],
+  );
+}
+
+export function insertSecurityPrice(price): Promise<DbSecurityPrice['id']> {
+  return insertWithUUID('security_prices', price);
+}
+
+export function updateSecurityPrice(price) {
+  return update('security_prices', price);
+}
+
+export function deleteSecurityPrice(price: Pick<DbSecurityPrice, 'id'>) {
+  return delete_('security_prices', price.id);
 }
