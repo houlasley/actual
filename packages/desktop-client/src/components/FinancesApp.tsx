@@ -35,10 +35,10 @@ import { Reports } from './reports';
 import { LoadingIndicator } from './reports/LoadingIndicator';
 import { NarrowAlternate, WideComponent } from './responsive';
 import { UserDirectoryPage } from './responsive/wide';
+import { SecuritiesPage } from './securities/SecuritiesPage';
 import { useMultiuserEnabled } from './ServerContext';
 import { Settings } from './settings';
 import { FloatableSidebar } from './sidebar';
-import { SecuritiesPage } from './securities/SecuritiesPage';
 import { ManageTagsPage } from './tags/ManageTagsPage';
 import { Titlebar } from './Titlebar';
 

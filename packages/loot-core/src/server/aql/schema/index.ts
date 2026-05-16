@@ -237,6 +237,17 @@ export const schema = {
     price: f('integer', { default: 0 }),
     tombstone: f('boolean'),
   },
+  investment_transactions: {
+    id: f('id'),
+    account: f('id', { ref: 'accounts', required: true }),
+    security: f('id', { ref: 'securities', required: true }),
+    date: f('date', { required: true }),
+    type: f('string', { required: true }),
+    shares: f('integer', { default: 0 }),
+    price: f('integer', { default: 0 }),
+    sort_order: f('float'),
+    tombstone: f('boolean'),
+  },
 };
 
 export const schemaConfig: SchemaConfig = {

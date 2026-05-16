@@ -58,8 +58,8 @@ export type Modal =
       name: 'add-local-account';
     }
   | {
-      name: 'holding-edit';
-      options: { accountId: string; holdingId?: string };
+      name: 'investment-transaction';
+      options: { accountId: string; transactionId?: string };
     }
   | {
       name: 'manage-securities';

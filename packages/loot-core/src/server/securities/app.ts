@@ -4,9 +4,14 @@ import { mutator } from '#server/mutators';
 import { batchMessages } from '#server/sync';
 import { undoable } from '#server/undo';
 import * as monthUtils from '#shared/months';
-import { holdingGain, holdingMarketValue } from '#shared/securities';
+import {
+  computeHoldings,
+  holdingGain,
+  holdingMarketValue,
+} from '#shared/securities';
 import type {
   HoldingEntity,
+  InvestmentTransactionEntity,
   SecurityEntity,
   SecurityPriceEntity,
 } from '#types/models';
@@ -20,18 +25,24 @@ export type HoldingView = HoldingEntity & {
   gain_percent: number | null;
 };
 
+export type InvestmentTransactionView = InvestmentTransactionEntity & {
+  ticker: SecurityEntity['ticker'];
+  security_name: SecurityEntity['name'];
+};
+
 export type SecuritiesHandlers = {
   'securities-get': typeof getSecurities;
   'security-create': typeof createSecurity;
   'security-update': typeof updateSecurity;
   'security-delete': typeof deleteSecurity;
   'holdings-get': typeof getHoldings;
-  'holding-create': typeof createHolding;
-  'holding-update': typeof updateHolding;
-  'holding-delete': typeof deleteHolding;
+  'holdings-value': typeof getHoldingsValue;
+  'investment-transactions-get': typeof getInvestmentTransactions;
+  'investment-transaction-create': typeof createInvestmentTransaction;
+  'investment-transaction-update': typeof updateInvestmentTransaction;
+  'investment-transaction-delete': typeof deleteInvestmentTransaction;
   'security-prices-get': typeof getSecurityPrices;
   'security-prices-set': typeof setSecurityPrices;
-  'holdings-value': typeof getHoldingsValue;
 };
 
 export const app = createApp<SecuritiesHandlers>();
@@ -40,12 +51,22 @@ app.method('security-create', mutator(undoable(createSecurity)));
 app.method('security-update', mutator(undoable(updateSecurity)));
 app.method('security-delete', mutator(undoable(deleteSecurity)));
 app.method('holdings-get', getHoldings);
-app.method('holding-create', mutator(undoable(createHolding)));
-app.method('holding-update', mutator(undoable(updateHolding)));
-app.method('holding-delete', mutator(undoable(deleteHolding)));
+app.method('holdings-value', getHoldingsValue);
+app.method('investment-transactions-get', getInvestmentTransactions);
+app.method(
+  'investment-transaction-create',
+  mutator(undoable(createInvestmentTransaction)),
+);
+app.method(
+  'investment-transaction-update',
+  mutator(undoable(updateInvestmentTransaction)),
+);
+app.method(
+  'investment-transaction-delete',
+  mutator(undoable(deleteInvestmentTransaction)),
+);
 app.method('security-prices-get', getSecurityPrices);
 app.method('security-prices-set', mutator(undoable(setSecurityPrices)));
-app.method('holdings-value', getHoldingsValue);
 
 async function getSecurities(): Promise<SecurityEntity[]> {
   const securities = await db.getSecurities();
@@ -92,10 +113,10 @@ async function updateSecurity(
 async function deleteSecurity({
   id,
 }: Pick<SecurityEntity, 'id'>): Promise<SecurityEntity['id']> {
-  const holdings = await db.getAllHoldings();
-  if (holdings.some(h => h.security === id)) {
+  const transactions = await db.getAllInvestmentTransactions();
+  if (transactions.some(t => t.security === id)) {
     throw new Error(
-      'Cannot delete a security that is still held in an account',
+      'Cannot delete a security that has investment transactions',
     );
   }
 
@@ -114,7 +135,15 @@ async function getHoldings({
 }: {
   accountId: HoldingEntity['account'];
 }): Promise<HoldingView[]> {
-  const holdings = await db.getHoldings(accountId);
+  const transactions = await db.getInvestmentTransactions(accountId);
+  const holdings = computeHoldings(
+    transactions.map(t => ({
+      security: t.security,
+      type: t.type,
+      shares: t.shares,
+      price: t.price,
+    })),
+  );
   const today = db.toDateRepr(monthUtils.currentDay());
 
   return Promise.all(
@@ -129,8 +158,8 @@ async function getHoldings({
       );
 
       return {
-        id: holding.id,
-        account: holding.account,
+        id: `${accountId}:${holding.security}`,
+        account: accountId,
         security: holding.security,
         shares: holding.shares,
         cost_basis: holding.cost_basis,
@@ -145,37 +174,125 @@ async function getHoldings({
   );
 }
 
-async function createHolding({
+async function getHoldingsValue({
+  accountId,
+  dates,
+}: {
+  accountId: HoldingEntity['account'];
+  dates: string[];
+}): Promise<Array<{ date: string; value: number }>> {
+  const transactions = await db.getInvestmentTransactions(accountId);
+
+  return Promise.all(
+    dates.map(async date => {
+      const dateInt = db.toDateRepr(date);
+      const holdings = computeHoldings(
+        transactions
+          .filter(t => t.date <= dateInt)
+          .map(t => ({
+            security: t.security,
+            type: t.type,
+            shares: t.shares,
+            price: t.price,
+          })),
+      );
+
+      let value = 0;
+      for (const holding of holdings) {
+        const priceRow = await db.getSecurityPriceAsOf(
+          holding.security,
+          dateInt,
+        );
+        value += holdingMarketValue(holding.shares, priceRow?.price ?? 0);
+      }
+      return { date, value };
+    }),
+  );
+}
+
+async function getInvestmentTransactions({
+  accountId,
+}: {
+  accountId: InvestmentTransactionEntity['account'];
+}): Promise<InvestmentTransactionView[]> {
+  const transactions = await db.getInvestmentTransactions(accountId);
+
+  return Promise.all(
+    transactions.map(async t => {
+      const security = await db.getSecurity(t.security);
+      return {
+        id: t.id,
+        account: t.account,
+        security: t.security,
+        date: db.fromDateRepr(t.date),
+        type: t.type,
+        shares: t.shares,
+        price: t.price,
+        ticker: security?.ticker ?? '',
+        security_name: security?.name ?? null,
+      };
+    }),
+  );
+}
+
+async function createInvestmentTransaction({
   account,
   security,
-  shares = 0,
-  cost_basis = 0,
-}: Pick<HoldingEntity, 'account' | 'security'> &
-  Partial<
-    Pick<HoldingEntity, 'shares' | 'cost_basis'>
-  >): Promise<HoldingEntity> {
-  const existing = await db.getHoldingByAccountSecurity(account, security);
-  if (existing) {
-    throw new Error(
-      'A holding for this security already exists in this account',
-    );
+  date,
+  type,
+  shares,
+  price,
+}: Omit<
+  InvestmentTransactionEntity,
+  'id'
+>): Promise<InvestmentTransactionEntity> {
+  if (type !== 'buy' && type !== 'sell') {
+    throw new Error('Investment transaction type must be "buy" or "sell"');
+  }
+  if (!Number.isFinite(shares) || shares <= 0) {
+    throw new Error('Shares must be a positive number');
+  }
+  if (!Number.isFinite(price) || price < 0) {
+    throw new Error('Price must be a non-negative number');
   }
 
-  const id = await db.insertHolding({ account, security, shares, cost_basis });
-  return { id, account, security, shares, cost_basis };
+  const id = await db.insertInvestmentTransaction({
+    account,
+    security,
+    date: db.toDateRepr(date),
+    type,
+    shares,
+    price,
+  });
+  return { id, account, security, date, type, shares, price };
 }
 
-async function updateHolding(
-  holding: Partial<HoldingEntity> & Pick<HoldingEntity, 'id'>,
-): Promise<Partial<HoldingEntity>> {
-  await db.updateHolding(holding);
-  return holding;
+async function updateInvestmentTransaction(
+  transaction: Partial<Omit<InvestmentTransactionEntity, 'id'>> &
+    Pick<InvestmentTransactionEntity, 'id'>,
+): Promise<Partial<InvestmentTransactionEntity>> {
+  if (
+    transaction.type != null &&
+    transaction.type !== 'buy' &&
+    transaction.type !== 'sell'
+  ) {
+    throw new Error('Investment transaction type must be "buy" or "sell"');
+  }
+
+  const { date, ...rest } = transaction;
+  await db.updateInvestmentTransaction({
+    ...rest,
+    ...(date != null ? { date: db.toDateRepr(date) } : {}),
+  });
+  return transaction;
 }
 
-async function deleteHolding({
+async function deleteInvestmentTransaction({
   id,
-}: Pick<HoldingEntity, 'id'>): Promise<HoldingEntity['id']> {
-  await db.deleteHolding({ id });
+}: Pick<InvestmentTransactionEntity, 'id'>): Promise<
+  InvestmentTransactionEntity['id']
+> {
+  await db.deleteInvestmentTransaction({ id });
   return id;
 }
 
@@ -214,29 +331,4 @@ async function setSecurityPrices({
     }
   });
   return { upserted };
-}
-
-async function getHoldingsValue({
-  accountId,
-  dates,
-}: {
-  accountId: HoldingEntity['account'];
-  dates: string[];
-}): Promise<Array<{ date: string; value: number }>> {
-  const holdings = await db.getHoldings(accountId);
-
-  return Promise.all(
-    dates.map(async date => {
-      const dateInt = db.toDateRepr(date);
-      let value = 0;
-      for (const holding of holdings) {
-        const priceRow = await db.getSecurityPriceAsOf(
-          holding.security,
-          dateInt,
-        );
-        value += holdingMarketValue(holding.shares, priceRow?.price ?? 0);
-      }
-      return { date, value };
-    }),
-  );
 }

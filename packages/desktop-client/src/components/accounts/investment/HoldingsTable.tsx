@@ -2,7 +2,6 @@ import { useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
-import { Button } from '@actual-app/components/button';
 import { Input } from '@actual-app/components/input';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
@@ -18,13 +17,7 @@ import { integerToCurrency } from '@actual-app/core/shared/util';
 import type { AccountEntity } from '@actual-app/core/types/models';
 import { useQuery } from '@tanstack/react-query';
 
-import { pushModal } from '#modals/modalsSlice';
-import { useDispatch } from '#redux';
-import {
-  securitiesQueries,
-  useDeleteHoldingMutation,
-  useSetSecurityPricesMutation,
-} from '#securities';
+import { securitiesQueries, useSetSecurityPricesMutation } from '#securities';
 
 const cellStyle: CSSProperties = {
   flex: 1,
@@ -88,25 +81,21 @@ export function HoldingsTable({ accountId }: HoldingsTableProps) {
         <View style={headerStyle}>
           <Trans>Gain</Trans>
         </View>
-        <View style={{ ...headerStyle, flex: 0.7 }} />
       </View>
       {holdings.map(holding => (
-        <HoldingRow key={holding.id} accountId={accountId} holding={holding} />
+        <HoldingRow key={holding.id} holding={holding} />
       ))}
     </View>
   );
 }
 
 type HoldingRowProps = {
-  accountId: AccountEntity['id'];
   holding: HoldingView;
 };
 
-function HoldingRow({ accountId, holding }: HoldingRowProps) {
+function HoldingRow({ holding }: HoldingRowProps) {
   const { t } = useTranslation();
-  const dispatch = useDispatch();
   const setPrices = useSetSecurityPricesMutation();
-  const deleteHolding = useDeleteHoldingMutation();
 
   const [priceText, setPriceText] = useState(
     String(integerToPrice(holding.price)),
@@ -171,37 +160,6 @@ function HoldingRow({ accountId, holding }: HoldingRowProps) {
             ? ` (${(holding.gain_percent * 100).toFixed(2)}%)`
             : ''}
         </Text>
-      </View>
-      <View
-        style={{
-          ...cellStyle,
-          flex: 0.7,
-          flexDirection: 'row',
-          gap: 6,
-          alignItems: 'center',
-        }}
-      >
-        <Button
-          variant="bare"
-          onPress={() =>
-            dispatch(
-              pushModal({
-                modal: {
-                  name: 'holding-edit',
-                  options: { accountId, holdingId: holding.id },
-                },
-              }),
-            )
-          }
-        >
-          <Trans>Edit</Trans>
-        </Button>
-        <Button
-          variant="bare"
-          onPress={() => deleteHolding.mutate({ id: holding.id })}
-        >
-          <Trans>Delete</Trans>
-        </Button>
       </View>
     </View>
   );
