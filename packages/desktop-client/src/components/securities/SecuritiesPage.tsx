@@ -6,10 +6,16 @@ import { FormError } from '@actual-app/components/form-error';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
-import { priceToInteger, integerToPrice } from '@actual-app/core/shared/securities';
-import type { SecurityEntity, SecurityPriceEntity } from '@actual-app/core/types/models';
-import { useQuery } from '@tanstack/react-query';
+import {
+  integerToPrice,
+  priceToInteger,
+} from '@actual-app/core/shared/securities';
+import type {
+  SecurityEntity,
+  SecurityPriceEntity,
+} from '@actual-app/core/types/models';
 import { css } from '@emotion/css';
+import { useQuery } from '@tanstack/react-query';
 import {
   CartesianGrid,
   Line,
@@ -84,7 +90,7 @@ function PriceTooltip({ active, payload, label }: PriceTooltipProps) {
     >
       <div style={{ marginBottom: 4, fontWeight: 600 }}>{label}</div>
       <div>
-        {t('Price')}: ${payload[0].value.toFixed(4)}
+        {<Trans>Price</Trans>}: ${payload[0].value.toFixed(4)}
       </div>
     </div>
   );
@@ -405,9 +411,7 @@ export function SecuritiesPage() {
                   {security.ticker}
                 </Text>
                 {security.name && (
-                  <Text
-                    style={{ fontSize: 12, color: theme.tableTextLight }}
-                  >
+                  <Text style={{ fontSize: 12, color: theme.tableTextLight }}>
                     {security.name}
                   </Text>
                 )}
