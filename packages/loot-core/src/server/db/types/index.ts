@@ -377,3 +377,15 @@ export type DbSecurityPrice = {
   price: number;
   tombstone: 1 | 0;
 };
+
+export type DbInvestmentTransaction = {
+  id: string;
+  account: DbAccount['id'];
+  security: DbSecurity['id'];
+  date: number;
+  type: 'buy' | 'sell';
+  shares: number;
+  price: number;
+  sort_order: number;
+  tombstone: 1 | 0;
+};

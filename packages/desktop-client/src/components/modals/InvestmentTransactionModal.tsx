@@ -8,12 +8,16 @@ import { FormError } from '@actual-app/components/form-error';
 import { InitialFocus } from '@actual-app/components/initial-focus';
 import { InlineField } from '@actual-app/components/inline-field';
 import { Input } from '@actual-app/components/input';
+import { Select } from '@actual-app/components/select';
 import { View } from '@actual-app/components/view';
+import * as monthUtils from '@actual-app/core/shared/months';
 import {
+  integerToPrice,
   integerToShares,
+  priceToInteger,
   sharesToInteger,
 } from '@actual-app/core/shared/securities';
-import { amountToInteger } from '@actual-app/core/shared/util';
+import type { InvestmentTransactionType } from '@actual-app/core/types/models';
 import { useQuery } from '@tanstack/react-query';
 
 import {
@@ -25,42 +29,46 @@ import {
 } from '#components/common/Modal';
 import {
   securitiesQueries,
-  useCreateHoldingMutation,
+  useCreateInvestmentTransactionMutation,
   useCreateSecurityMutation,
-  useUpdateHoldingMutation,
+  useUpdateInvestmentTransactionMutation,
 } from '#securities';
 
-type HoldingEditModalProps = {
+type InvestmentTransactionModalProps = {
   accountId: string;
-  holdingId?: string;
+  transactionId?: string;
 };
 
-export function HoldingEditModal({
+export function InvestmentTransactionModal({
   accountId,
-  holdingId,
-}: HoldingEditModalProps) {
+  transactionId,
+}: InvestmentTransactionModalProps) {
   const { t } = useTranslation();
 
-  const { data: holdings = [] } = useQuery(
-    securitiesQueries.holdings(accountId),
+  const { data: transactions = [] } = useQuery(
+    securitiesQueries.investmentTransactions(accountId),
   );
-  const existingHolding = holdingId
-    ? holdings.find(h => h.id === holdingId)
+  const existing = transactionId
+    ? transactions.find(tx => tx.id === transactionId)
     : undefined;
 
-  const [ticker, setTicker] = useState(existingHolding?.ticker ?? '');
-  const [name, setName] = useState(existingHolding?.security_name ?? '');
-  const [shares, setShares] = useState(
-    existingHolding ? String(integerToShares(existingHolding.shares)) : '0',
+  const [ticker, setTicker] = useState(existing?.ticker ?? '');
+  const [name, setName] = useState(existing?.security_name ?? '');
+  const [type, setType] = useState<InvestmentTransactionType>(
+    existing?.type ?? 'buy',
   );
-  const [costBasis, setCostBasis] = useState(
-    existingHolding ? String(existingHolding.cost_basis / 100) : '0',
+  const [date, setDate] = useState(existing?.date ?? monthUtils.currentDay());
+  const [shares, setShares] = useState(
+    existing ? String(integerToShares(existing.shares)) : '',
+  );
+  const [price, setPrice] = useState(
+    existing ? String(integerToPrice(existing.price)) : '',
   );
   const [error, setError] = useState<string | null>(null);
 
   const createSecurity = useCreateSecurityMutation();
-  const createHolding = useCreateHoldingMutation();
-  const updateHolding = useUpdateHoldingMutation();
+  const createTransaction = useCreateInvestmentTransactionMutation();
+  const updateTransaction = useUpdateInvestmentTransactionMutation();
 
   const onSubmit = async (
     event: FormEvent<HTMLFormElement>,
@@ -76,13 +84,17 @@ export function HoldingEditModal({
     }
 
     const parsedShares = Number(shares.trim());
-    const parsedCost = Number(costBasis.trim());
-    if (Number.isNaN(parsedShares)) {
-      setError(t('Shares must be a number'));
+    const parsedPrice = Number(price.trim());
+    if (!Number.isFinite(parsedShares) || parsedShares <= 0) {
+      setError(t('Shares must be a positive number'));
       return;
     }
-    if (Number.isNaN(parsedCost)) {
-      setError(t('Cost basis must be a number'));
+    if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
+      setError(t('Purchase price must be a non-negative number'));
+      return;
+    }
+    if (!date) {
+      setError(t('Date is required'));
       return;
     }
 
@@ -92,19 +104,23 @@ export function HoldingEditModal({
         name: name.trim() || null,
       });
 
-      if (holdingId) {
-        await updateHolding.mutateAsync({
-          id: holdingId,
+      if (transactionId) {
+        await updateTransaction.mutateAsync({
+          id: transactionId,
           security: security.id,
+          date,
+          type,
           shares: sharesToInteger(parsedShares),
-          cost_basis: amountToInteger(parsedCost),
+          price: priceToInteger(parsedPrice),
         });
       } else {
-        await createHolding.mutateAsync({
+        await createTransaction.mutateAsync({
           account: accountId,
           security: security.id,
+          date,
+          type,
           shares: sharesToInteger(parsedShares),
-          cost_basis: amountToInteger(parsedCost),
+          price: priceToInteger(parsedPrice),
         });
       }
 
@@ -115,13 +131,17 @@ export function HoldingEditModal({
   };
 
   return (
-    <Modal name="holding-edit">
+    <Modal name="investment-transaction">
       {({ state }) => (
         <>
           <ModalHeader
             title={
               <ModalTitle
-                title={holdingId ? t('Edit Holding') : t('Add Holding')}
+                title={
+                  transactionId
+                    ? t('Edit Investment Transaction')
+                    : t('Add Investment Transaction')
+                }
                 shrinkOnOverflow
               />
             }
@@ -147,6 +167,28 @@ export function HoldingEditModal({
                   style={{ flex: 1 }}
                 />
               </InlineField>
+              <InlineField label={t('Type')} width="100%">
+                <Select
+                  options={[
+                    ['buy', t('Buy')],
+                    ['sell', t('Sell')],
+                  ]}
+                  value={type}
+                  onChange={value =>
+                    setType(value as InvestmentTransactionType)
+                  }
+                  style={{ flex: 1 }}
+                />
+              </InlineField>
+              <InlineField label={t('Date')} width="100%">
+                <Input
+                  name="date"
+                  type="date"
+                  value={date}
+                  onChangeValue={setDate}
+                  style={{ flex: 1 }}
+                />
+              </InlineField>
               <InlineField label={t('Shares')} width="100%">
                 <Input
                   name="shares"
@@ -156,12 +198,12 @@ export function HoldingEditModal({
                   style={{ flex: 1 }}
                 />
               </InlineField>
-              <InlineField label={t('Cost basis')} width="100%">
+              <InlineField label={t('Purchase price')} width="100%">
                 <Input
-                  name="cost_basis"
+                  name="price"
                   inputMode="decimal"
-                  value={costBasis}
-                  onChangeValue={setCostBasis}
+                  value={price}
+                  onChangeValue={setPrice}
                   style={{ flex: 1 }}
                 />
               </InlineField>

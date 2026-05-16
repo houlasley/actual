@@ -43,3 +43,64 @@ export function holdingGain(
     gainPercent: costBasis !== 0 ? gain / costBasis : null,
   };
 }
+
+// A single buy/sell movement of a security. Shares and price are in
+// their scaled-integer representations.
+export type InvestmentTxnInput = {
+  security: string;
+  type: 'buy' | 'sell';
+  shares: number;
+  price: number;
+};
+
+export type ComputedHolding = {
+  security: string;
+  shares: number;
+  cost_basis: number;
+};
+
+// Derive current holdings (net shares and average-cost basis) from an
+// ordered list of buy/sell transactions, the way Quicken builds
+// holdings from the investment register. Transactions MUST be passed in
+// chronological order (date ascending, then sort order). Securities
+// whose net position is fully closed out are omitted.
+export function computeHoldings(
+  transactions: InvestmentTxnInput[],
+): ComputedHolding[] {
+  const positions = new Map<string, { shares: number; cost_basis: number }>();
+
+  for (const txn of transactions) {
+    const position = positions.get(txn.security) ?? {
+      shares: 0,
+      cost_basis: 0,
+    };
+
+    if (txn.type === 'buy') {
+      position.shares += txn.shares;
+      position.cost_basis += holdingMarketValue(txn.shares, txn.price);
+    } else {
+      // Average-cost method: a sale removes cost basis proportional to
+      // the fraction of shares sold.
+      if (position.shares > 0) {
+        const fraction = txn.shares / position.shares;
+        position.cost_basis -= Math.round(position.cost_basis * fraction);
+      }
+      position.shares -= txn.shares;
+
+      if (position.shares <= 0) {
+        position.shares = 0;
+        position.cost_basis = 0;
+      }
+    }
+
+    positions.set(txn.security, position);
+  }
+
+  return [...positions.entries()]
+    .filter(([, position]) => position.shares !== 0)
+    .map(([security, position]) => ({
+      security,
+      shares: position.shares,
+      cost_basis: position.cost_basis,
+    }));
+}

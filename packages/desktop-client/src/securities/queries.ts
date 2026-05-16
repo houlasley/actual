@@ -1,5 +1,8 @@
 import { send } from '@actual-app/core/platform/client/connection';
-import type { HoldingView } from '@actual-app/core/server/securities/app';
+import type {
+  HoldingView,
+  InvestmentTransactionView,
+} from '@actual-app/core/server/securities/app';
 import type {
   AccountEntity,
   SecurityEntity,
@@ -29,6 +32,23 @@ export const securitiesQueries = {
           accountId,
         });
         return holdings;
+      },
+      placeholderData: [],
+      staleTime: Infinity,
+    }),
+  investmentTransactions: (accountId: AccountEntity['id']) =>
+    queryOptions<InvestmentTransactionView[]>({
+      queryKey: [
+        ...securitiesQueries.all(),
+        'investment-transactions',
+        accountId,
+      ],
+      queryFn: async () => {
+        const transactions: InvestmentTransactionView[] = await send(
+          'investment-transactions-get',
+          { accountId },
+        );
+        return transactions;
       },
       placeholderData: [],
       staleTime: Infinity,

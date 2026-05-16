@@ -1,6 +1,6 @@
 import { send } from '@actual-app/core/platform/client/connection';
 import type {
-  HoldingEntity,
+  InvestmentTransactionEntity,
   SecurityEntity,
   SecurityPriceEntity,
 } from '@actual-app/core/types/models';
@@ -18,6 +18,10 @@ function invalidateQueries(queryClient: QueryClient, queryKey?: QueryKey) {
 function invalidateHoldings(queryClient: QueryClient) {
   invalidateQueries(queryClient, securitiesQueries.lists());
   invalidateQueries(queryClient, [...securitiesQueries.all(), 'holdings']);
+  invalidateQueries(queryClient, [
+    ...securitiesQueries.all(),
+    'investment-transactions',
+  ]);
 }
 
 type CreateSecurityPayload = {
@@ -80,68 +84,60 @@ export function useDeleteSecurityMutation() {
   });
 }
 
-type CreateHoldingPayload = {
-  account: HoldingEntity['account'];
-  security: HoldingEntity['security'];
-  shares?: HoldingEntity['shares'];
-  cost_basis?: HoldingEntity['cost_basis'];
-};
+type CreateInvestmentTransactionPayload = Omit<
+  InvestmentTransactionEntity,
+  'id'
+>;
 
-export function useCreateHoldingMutation() {
+export function useCreateInvestmentTransactionMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      account,
-      security,
-      shares,
-      cost_basis,
-    }: CreateHoldingPayload) => {
-      const holding: HoldingEntity = await send('holding-create', {
-        account,
-        security,
-        shares,
-        cost_basis,
-      });
-      return holding;
+    mutationFn: async (transaction: CreateInvestmentTransactionPayload) => {
+      const created: InvestmentTransactionEntity = await send(
+        'investment-transaction-create',
+        transaction,
+      );
+      return created;
     },
     onSuccess: () => invalidateHoldings(queryClient),
     onError: error => {
-      console.error('Error creating holding:', error);
+      console.error('Error creating investment transaction:', error);
     },
   });
 }
 
-type UpdateHoldingPayload = Partial<HoldingEntity> & Pick<HoldingEntity, 'id'>;
+type UpdateInvestmentTransactionPayload = Partial<InvestmentTransactionEntity> &
+  Pick<InvestmentTransactionEntity, 'id'>;
 
-export function useUpdateHoldingMutation() {
+export function useUpdateInvestmentTransactionMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (holding: UpdateHoldingPayload) => {
-      return await send('holding-update', holding);
+    mutationFn: async (transaction: UpdateInvestmentTransactionPayload) => {
+      return await send('investment-transaction-update', transaction);
     },
     onSuccess: () => invalidateHoldings(queryClient),
     onError: error => {
-      console.error('Error updating holding:', error);
+      console.error('Error updating investment transaction:', error);
     },
   });
 }
 
-type DeleteHoldingPayload = {
-  id: HoldingEntity['id'];
+type DeleteInvestmentTransactionPayload = {
+  id: InvestmentTransactionEntity['id'];
 };
 
-export function useDeleteHoldingMutation() {
+export function useDeleteInvestmentTransactionMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id }: DeleteHoldingPayload) => {
-      return await send('holding-delete', { id });
+    mutationFn: async ({ id }: DeleteInvestmentTransactionPayload) => {
+      return await send('investment-transaction-delete', { id });
     },
     onSuccess: () => invalidateHoldings(queryClient),
     onError: error => {
-      console.error('Error deleting holding:', error);
+      console.error('Error deleting investment transaction:', error);
     },
   });
 }

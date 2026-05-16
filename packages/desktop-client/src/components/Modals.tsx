@@ -49,8 +49,8 @@ import { GoalTemplateModal } from './modals/GoalTemplateModal';
 import { GoCardlessExternalMsgModal } from './modals/GoCardlessExternalMsgModal';
 import { GoCardlessInitialiseModal } from './modals/GoCardlessInitialiseModal';
 import { HoldBufferModal } from './modals/HoldBufferModal';
-import { HoldingEditModal } from './modals/HoldingEditModal';
 import { ImportTransactionsModal } from './modals/ImportTransactionsModal';
+import { InvestmentTransactionModal } from './modals/InvestmentTransactionModal';
 import { KeyboardShortcutModal } from './modals/KeyboardShortcutModal';
 import { LoadBackupModal } from './modals/LoadBackupModal';
 import { ConfirmChangeDocumentDirModal } from './modals/manager/ConfirmChangeDocumentDir';
@@ -136,12 +136,12 @@ export function Modals() {
         case 'add-local-account':
           return <CreateLocalAccountModal key={key} />;
 
-        case 'holding-edit':
+        case 'investment-transaction':
           return (
-            <HoldingEditModal
+            <InvestmentTransactionModal
               key={key}
               accountId={modal.options.accountId}
-              holdingId={modal.options.holdingId}
+              transactionId={modal.options.transactionId}
             />
           );
 

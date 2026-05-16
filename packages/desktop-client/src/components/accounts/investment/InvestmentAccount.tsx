@@ -15,6 +15,7 @@ import { useDispatch } from '#redux';
 import { securitiesQueries } from '#securities';
 
 import { HoldingsTable } from './HoldingsTable';
+import { InvestmentTransactionsTable } from './InvestmentTransactionsTable';
 
 type InvestmentAccountProps = {
   accountId: AccountEntity['id'];
@@ -51,14 +52,14 @@ export function InvestmentAccount({ accountId }: InvestmentAccountProps) {
             dispatch(
               pushModal({
                 modal: {
-                  name: 'holding-edit',
+                  name: 'investment-transaction',
                   options: { accountId },
                 },
               }),
             )
           }
         >
-          <Trans>Add holding</Trans>
+          <Trans>Add transaction</Trans>
         </Button>
         <Button
           onPress={() =>
@@ -79,13 +80,28 @@ export function InvestmentAccount({ accountId }: InvestmentAccountProps) {
           <Trans>Total value</Trans>: {integerToCurrency(totalValue)}
         </Text>
       </View>
+      <Text style={{ fontWeight: 600, marginBottom: 8 }}>
+        <Trans>Holdings</Trans>
+      </Text>
+      <View
+        style={{
+          backgroundColor: theme.tableBackground,
+          borderRadius: 4,
+          marginBottom: 25,
+        }}
+      >
+        <HoldingsTable accountId={accountId} />
+      </View>
+      <Text style={{ fontWeight: 600, marginBottom: 8 }}>
+        <Trans>Transactions</Trans>
+      </Text>
       <View
         style={{
           backgroundColor: theme.tableBackground,
           borderRadius: 4,
         }}
       >
-        <HoldingsTable accountId={accountId} />
+        <InvestmentTransactionsTable accountId={accountId} />
       </View>
     </Page>
   );

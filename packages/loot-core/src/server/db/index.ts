@@ -47,6 +47,7 @@ import type {
   DbCategoryMapping,
   DbClockMessage,
   DbHolding,
+  DbInvestmentTransaction,
   DbPayee,
   DbPayeeMapping,
   DbSecurity,
@@ -1110,4 +1111,57 @@ export function updateSecurityPrice(price) {
 
 export function deleteSecurityPrice(price: Pick<DbSecurityPrice, 'id'>) {
   return delete_('security_prices', price.id);
+}
+
+export function getInvestmentTransactions(
+  accountId: DbInvestmentTransaction['account'],
+) {
+  return all<DbInvestmentTransaction>(
+    `SELECT * FROM investment_transactions
+       WHERE account = ? AND tombstone = 0
+       ORDER BY date, sort_order, id`,
+    [accountId],
+  );
+}
+
+export function getAllInvestmentTransactions() {
+  return all<DbInvestmentTransaction>(
+    `SELECT * FROM investment_transactions
+       WHERE tombstone = 0
+       ORDER BY date, sort_order, id`,
+  );
+}
+
+export function getInvestmentTransaction(id: DbInvestmentTransaction['id']) {
+  return first<DbInvestmentTransaction>(
+    `SELECT * FROM investment_transactions WHERE id = ?`,
+    [id],
+  );
+}
+
+export async function insertInvestmentTransaction(
+  transaction: Omit<DbInvestmentTransaction, 'id' | 'sort_order' | 'tombstone'>,
+): Promise<DbInvestmentTransaction['id']> {
+  const lastTxn = await first<Pick<DbInvestmentTransaction, 'sort_order'>>(`
+    SELECT sort_order FROM investment_transactions
+      WHERE tombstone = 0 ORDER BY sort_order DESC, id DESC LIMIT 1
+  `);
+  const sort_order = (lastTxn ? lastTxn.sort_order : 0) + SORT_INCREMENT;
+  return insertWithUUID('investment_transactions', {
+    ...transaction,
+    sort_order,
+  });
+}
+
+export function updateInvestmentTransaction(
+  transaction: Partial<DbInvestmentTransaction> &
+    Pick<DbInvestmentTransaction, 'id'>,
+) {
+  return update('investment_transactions', transaction);
+}
+
+export function deleteInvestmentTransaction(
+  transaction: Pick<DbInvestmentTransaction, 'id'>,
+) {
+  return delete_('investment_transactions', transaction.id);
 }
