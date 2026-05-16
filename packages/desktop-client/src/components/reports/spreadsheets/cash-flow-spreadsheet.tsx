@@ -20,77 +20,15 @@ export type ScheduledCashFlowEntry = {
   amount: number;
 };
 
-export function simpleCashFlow(
-  startMonth: string,
-  endMonth: string,
-  conditions: RuleConditionEntity[] = [],
-  conditionsOp: 'and' | 'or' = 'and',
-  scheduledTransactions: ScheduledCashFlowEntry[] = [],
-) {
-  const start = monthUtils.firstDayOfMonth(startMonth);
-  const end = monthUtils.lastDayOfMonth(endMonth);
-  const today = monthUtils.currentDay();
-  const fixedEnd = end > today ? today : end;
-
-  return async (
-    spreadsheet: ReturnType<typeof useSpreadsheet>,
-    setData: (data: {
-      graphData: {
-        income: number;
-        expense: number;
-        projectedIncome: number;
-        projectedExpense: number;
-      };
-    }) => void,
-  ) => {
-    const { filters } = await send('make-filters-from-conditions', {
-      conditions: conditions.filter(cond => !cond.customName),
-    });
-    const conditionsOpKey = conditionsOp === 'or' ? '$or' : '$and';
-
-    function makeQuery() {
-      return q('transactions')
-        .filter({
-          [conditionsOpKey]: filters,
-        })
-        .filter({
-          $and: [{ date: { $gte: start } }, { date: { $lte: fixedEnd } }],
-          'account.offbudget': false,
-          'payee.transfer_acct': null,
-        })
-        .calculate({ $sum: '$amount' });
-    }
-
-    return runAll(
-      [
-        makeQuery().filter({ amount: { $gt: 0 } }),
-        makeQuery().filter({ amount: { $lt: 0 } }),
-      ],
-      data => {
-        // Sum projected scheduled transactions in the future portion of the range
-        let projectedIncome = 0;
-        let projectedExpense = 0;
-        for (const t of scheduledTransactions) {
-          if (t.date > today && t.date >= start && t.date <= end) {
-            if (t.amount > 0) {
-              projectedIncome += t.amount;
-            } else {
-              projectedExpense += t.amount;
-            }
-          }
-        }
-
-        setData({
-          graphData: {
-            income: data[0],
-            expense: data[1],
-            projectedIncome,
-            projectedExpense,
-          },
-        });
-      },
-    );
-  };
+/**
+ * Whether a cash flow date range is long enough to aggregate by month
+ * instead of by day. Shared so the dashboard card and the expanded report
+ * bucket their data identically.
+ */
+export function isConciseTimeRange(start: string, end: string): boolean {
+  return (
+    d.differenceInCalendarDays(d.parseISO(end), d.parseISO(start)) > 31 * 3
+  );
 }
 
 export function cashFlowByDate(

@@ -1,96 +1,30 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import type { SVGAttributes } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 import { send } from '@actual-app/core/platform/client/connection';
 import * as monthUtils from '@actual-app/core/shared/months';
 import type { CashFlowWidget } from '@actual-app/core/types/models';
-import { Bar, BarChart, LabelList } from 'recharts';
 
-import { FinancialText } from '#components/FinancialText';
 import { PrivacyFilter } from '#components/PrivacyFilter';
 import { Change } from '#components/reports/Change';
-import { useRechartsAnimation } from '#components/reports/chart-theme';
-import { Container } from '#components/reports/Container';
 import { DateRange } from '#components/reports/DateRange';
+import { CashFlowGraph } from '#components/reports/graphs/CashFlowGraph';
 import { LoadingIndicator } from '#components/reports/LoadingIndicator';
 import { ReportCard } from '#components/reports/ReportCard';
 import { ReportCardName } from '#components/reports/ReportCardName';
 import { calculateTimeRange } from '#components/reports/reportRanges';
-import { simpleCashFlow } from '#components/reports/spreadsheets/cash-flow-spreadsheet';
+import {
+  cashFlowByDate,
+  isConciseTimeRange,
+} from '#components/reports/spreadsheets/cash-flow-spreadsheet';
+import { useCashFlowScheduledTransactions } from '#components/reports/useCashFlowScheduledTransactions';
 import { useDashboardWidgetCopyMenu } from '#components/reports/useDashboardWidgetCopyMenu';
 import { useReport } from '#components/reports/useReport';
 import { useFormat } from '#hooks/useFormat';
+import { useLocale } from '#hooks/useLocale';
 
 import { defaultTimeFrame } from './CashFlow';
-
-type CustomLabelProps = {
-  value?: number;
-  name: string;
-  position?: 'left' | 'right';
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
-};
-
-function CustomLabel({
-  value = 0,
-  name,
-  position = 'left',
-  x = 0,
-  y = 0,
-  width: barWidth = 0,
-  height: barHeight = 0,
-}: CustomLabelProps) {
-  const format = useFormat();
-
-  const valueLengthOffset = 20;
-
-  const yOffset = barHeight < 25 ? 105 : y;
-
-  const labelXOffsets = {
-    right: 6,
-    left: -valueLengthOffset + 1,
-  };
-
-  const valueXOffsets = {
-    right: 6,
-    left: -valueLengthOffset + 2,
-  };
-
-  const anchorValue: {
-    right: SVGAttributes<SVGTextElement>['textAnchor'];
-    left: SVGAttributes<SVGTextElement>['textAnchor'];
-  } = {
-    right: 'start',
-    left: 'end',
-  };
-
-  return (
-    <>
-      <text
-        x={x + barWidth + labelXOffsets[position]}
-        y={yOffset + 10}
-        textAnchor={anchorValue[position]}
-        fill={theme.tableText}
-      >
-        {name}
-      </text>
-      <FinancialText
-        as="text"
-        x={x + barWidth + valueXOffsets[position]}
-        y={yOffset + 26}
-        textAnchor={anchorValue[position]}
-        fill={theme.tableText}
-      >
-        <PrivacyFilter>{format(value, 'financial')}</PrivacyFilter>
-      </FinancialText>
-    </>
-  );
-}
 
 type CashFlowCardProps = {
   widgetId: string;
@@ -110,7 +44,8 @@ export function CashFlowCard({
   onCopy,
 }: CashFlowCardProps) {
   const { t } = useTranslation();
-  const animationProps = useRechartsAnimation();
+  const locale = useLocale();
+  const format = useFormat();
   const [latestTransaction, setLatestTransaction] = useState<string>('');
   const [nameMenuOpen, setNameMenuOpen] = useState(false);
 
@@ -133,19 +68,39 @@ export function CashFlowCard({
     latestTransaction,
   );
 
+  const isConcise = isConciseTimeRange(start, end);
+  const scheduledTransactions = useCashFlowScheduledTransactions(end);
+
   const params = useMemo(
-    () => simpleCashFlow(start, end, meta?.conditions, meta?.conditionsOp),
-    [start, end, meta?.conditions, meta?.conditionsOp],
+    () =>
+      cashFlowByDate(
+        start,
+        end,
+        isConcise,
+        meta?.conditions,
+        meta?.conditionsOp ?? 'and',
+        locale,
+        format,
+        scheduledTransactions,
+      ),
+    [
+      start,
+      end,
+      isConcise,
+      meta?.conditions,
+      meta?.conditionsOp,
+      locale,
+      format,
+      scheduledTransactions,
+    ],
   );
-  const data = useReport('cash_flow_simple', params);
+  const data = useReport('cash_flow_card', params);
 
   const [isCardHovered, setIsCardHovered] = useState(false);
   const onCardHover = useCallback(() => setIsCardHovered(true), []);
   const onCardHoverEnd = useCallback(() => setIsCardHovered(false), []);
 
-  const { graphData } = data || {};
-  const expenses = -(graphData?.expense || 0);
-  const income = graphData?.income || 0;
+  const change = data != null ? data.totalIncome + data.totalExpenses : 0;
 
   return (
     <ReportCard
@@ -201,58 +156,19 @@ export function CashFlowCard({
           {data && (
             <View style={{ textAlign: 'right' }}>
               <PrivacyFilter activationFilters={[!isCardHovered]}>
-                <Change amount={income - expenses} />
+                <Change amount={change} />
               </PrivacyFilter>
             </View>
           )}
         </View>
 
         {data ? (
-          <Container style={{ height: 'auto', flex: 1 }}>
-            {(width, height) => (
-              <BarChart
-                responsive
-                width={width}
-                height={height}
-                data={[
-                  {
-                    income,
-                    expenses,
-                  },
-                ]}
-                margin={{
-                  top: 10,
-                  bottom: 0,
-                }}
-              >
-                <Bar
-                  dataKey="income"
-                  fill={theme.reportsNumberPositive}
-                  barSize={14}
-                  {...animationProps}
-                >
-                  <LabelList
-                    dataKey="income"
-                    position="left"
-                    content={<CustomLabel name={t('Income')} />}
-                  />
-                </Bar>
-
-                <Bar
-                  dataKey="expenses"
-                  fill={theme.reportsNumberNegative}
-                  barSize={14}
-                  {...animationProps}
-                >
-                  <LabelList
-                    dataKey="expenses"
-                    position="right"
-                    content={<CustomLabel name={t('Expenses')} />}
-                  />
-                </Bar>
-              </BarChart>
-            )}
-          </Container>
+          <CashFlowGraph
+            graphData={data.graphData}
+            isConcise={isConcise}
+            showBalance
+            style={{ flex: 1 }}
+          />
         ) : (
           <LoadingIndicator />
         )}

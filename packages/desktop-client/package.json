@@ -65,6 +65,7 @@
     "#components/reports/setSessionReport": "./src/components/reports/setSessionReport.ts",
     "#components/reports/spreadsheets/cash-flow-spreadsheet": "./src/components/reports/spreadsheets/cash-flow-spreadsheet.tsx",
     "#components/reports/spreadsheets/*": "./src/components/reports/spreadsheets/*.ts",
+    "#components/reports/useCashFlowScheduledTransactions": "./src/components/reports/useCashFlowScheduledTransactions.ts",
     "#components/reports/useDashboardWidgetCopyMenu": "./src/components/reports/useDashboardWidgetCopyMenu.ts",
     "#components/reports/useReport": "./src/components/reports/useReport.ts",
     "#components/reports/util": "./src/components/reports/util.ts",

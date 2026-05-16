@@ -12,13 +12,6 @@ import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 import { send } from '@actual-app/core/platform/client/connection';
 import * as monthUtils from '@actual-app/core/shared/months';
-import {
-  extractScheduleConds,
-  getNextDate,
-  getScheduledAmount,
-  scheduleIsRecurring,
-} from '@actual-app/core/shared/schedules';
-import { groupById } from '@actual-app/core/shared/util';
 import type {
   CashFlowWidget,
   RuleConditionEntity,
@@ -40,17 +33,17 @@ import {
   getNextMonthsRange,
   getStraddleRange,
 } from '#components/reports/reportRanges';
-import { cashFlowByDate } from '#components/reports/spreadsheets/cash-flow-spreadsheet';
-import type { ScheduledCashFlowEntry } from '#components/reports/spreadsheets/cash-flow-spreadsheet';
+import {
+  cashFlowByDate,
+  isConciseTimeRange,
+} from '#components/reports/spreadsheets/cash-flow-spreadsheet';
+import { useCashFlowScheduledTransactions } from '#components/reports/useCashFlowScheduledTransactions';
 import { useReport } from '#components/reports/useReport';
-import { useAccounts } from '#hooks/useAccounts';
 import { useDashboardWidget } from '#hooks/useDashboardWidget';
 import { useFormat } from '#hooks/useFormat';
 import { useLocale } from '#hooks/useLocale';
 import { useNavigate } from '#hooks/useNavigate';
-import { usePayeesById } from '#hooks/usePayees';
 import { useRuleConditionFilters } from '#hooks/useRuleConditionFilters';
-import { getSchedulesQuery, useSchedules } from '#hooks/useSchedules';
 import { useSyncedPref } from '#hooks/useSyncedPref';
 import { addNotification } from '#notifications/notificationsSlice';
 import { useDispatch } from '#redux';
@@ -111,94 +104,9 @@ function CashFlowInner({ widget }: CashFlowInnerProps) {
   );
   const [latestTransaction, setLatestTransaction] = useState('');
 
-  const [isConcise, setIsConcise] = useState(false);
+  const isConcise = isConciseTimeRange(start, end);
 
-  useEffect(() => {
-    const numDays = d.differenceInCalendarDays(
-      d.parseISO(end),
-      d.parseISO(start),
-    );
-    setIsConcise(numDays > 31 * 3);
-  }, [start, end]);
-
-  // Fetch schedules and account/payee data to compute future transactions
-  const schedulesQuery = useMemo(() => getSchedulesQuery(), []);
-  const { schedules, isLoading: isSchedulesLoading } = useSchedules({
-    query: schedulesQuery,
-  });
-  const { data: accounts = [] } = useAccounts();
-  const { data: payeesById = {} } = usePayeesById();
-
-  const accountsById = useMemo(() => groupById(accounts), [accounts]);
-
-  // Compute future scheduled transactions for the date range
-  const scheduledTransactions = useMemo((): ScheduledCashFlowEntry[] => {
-    if (isSchedulesLoading) return [];
-
-    const today = monthUtils.currentDay();
-    const endDate = monthUtils.lastDayOfMonth(end);
-
-    if (endDate <= today) return [];
-
-    const result: ScheduledCashFlowEntry[] = [];
-
-    for (const schedule of schedules) {
-      if (schedule.completed) continue;
-
-      // Only include on-budget accounts
-      const account = accountsById[schedule._account];
-      if (!account || account.offbudget) continue;
-
-      // Skip transfer schedules (payee has transfer_acct set)
-      const payee = payeesById[schedule._payee];
-      if (payee?.transfer_acct) continue;
-
-      const amount = getScheduledAmount(schedule._amount);
-      if (amount === 0) continue;
-
-      const { date: dateConditions } = extractScheduleConds(
-        schedule._conditions,
-      );
-      if (!dateConditions) continue;
-
-      const isRecurring = scheduleIsRecurring(dateConditions);
-
-      if (!isRecurring) {
-        // One-time schedule: include if it's in the future portion of the range
-        const schedDate = schedule.next_date;
-        if (schedDate && schedDate > today && schedDate <= endDate) {
-          result.push({ date: schedDate, amount });
-        }
-      } else {
-        // Recurring schedule: generate all occurrences from tomorrow to end of range
-        const rangeEnd = d.parseISO(endDate);
-        const startFrom = d.parseISO(monthUtils.addDays(today, 1));
-
-        // Find first occurrence at or after startFrom
-        let current = getNextDate(dateConditions, startFrom);
-        let iterations = 0;
-        const MAX_ITERATIONS = 1000;
-
-        while (
-          current !== null &&
-          current <= endDate &&
-          iterations < MAX_ITERATIONS
-        ) {
-          if (current > today) {
-            result.push({ date: current, amount });
-          }
-
-          // Advance to next occurrence
-          const nextStart = d.addDays(d.parseISO(current), 1);
-          if (nextStart > rangeEnd) break;
-          current = getNextDate(dateConditions, nextStart);
-          iterations++;
-        }
-      }
-    }
-
-    return result;
-  }, [schedules, isSchedulesLoading, accountsById, payeesById, end]);
+  const scheduledTransactions = useCashFlowScheduledTransactions(end);
 
   const params = useMemo(
     () =>
