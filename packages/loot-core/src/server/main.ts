@@ -119,6 +119,13 @@ handlers['app-focused'] = async function () {
   if (prefs.getPrefs() && prefs.getPrefs().id) {
     // First we sync
     void fullSync();
+
+    // Fetch security prices once per calendar day
+    const today = monthUtils.currentDay();
+    if (prefs.getPrefs().lastPriceFetch !== today) {
+      await prefs.savePrefs({ lastPriceFetch: today });
+      void runHandler(handlers['securities-prices-fetch-all'], {});
+    }
   }
 };
 
