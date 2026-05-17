@@ -148,12 +148,14 @@ type CashFlowGraphProps = {
   isConcise: boolean;
   showBalance?: boolean;
   style?: CSSProperties;
+  onBarClick?: (date: Date, type: 'income' | 'expenses') => void;
 };
 export function CashFlowGraph({
   graphData,
   isConcise,
   showBalance = true,
   style,
+  onBarClick,
 }: CashFlowGraphProps) {
   const locale = useLocale();
   const privacyMode = usePrivacyMode();
@@ -232,6 +234,15 @@ export function CashFlowGraph({
             dataKey="income"
             stackId="a"
             maxBarSize={MAX_BAR_SIZE}
+            onClick={
+              onBarClick
+                ? (entry: DataItem) => {
+                    if (!entry.projected) {
+                      onBarClick(entry.date, 'income');
+                    }
+                  }
+                : undefined
+            }
             {...animationProps}
           >
             {data.map((entry, index) => (
@@ -239,6 +250,10 @@ export function CashFlowGraph({
                 key={index}
                 fill={theme.reportsNumberPositive}
                 fillOpacity={entry.projected ? PROJECTED_OPACITY : 1}
+                style={{
+                  cursor:
+                    onBarClick && !entry.projected ? 'pointer' : undefined,
+                }}
               />
             ))}
           </Bar>
@@ -246,6 +261,15 @@ export function CashFlowGraph({
             dataKey="expenses"
             stackId="a"
             maxBarSize={MAX_BAR_SIZE}
+            onClick={
+              onBarClick
+                ? (entry: DataItem) => {
+                    if (!entry.projected) {
+                      onBarClick(entry.date, 'expenses');
+                    }
+                  }
+                : undefined
+            }
             {...animationProps}
           >
             {data.map((entry, index) => (
@@ -253,6 +277,10 @@ export function CashFlowGraph({
                 key={index}
                 fill={theme.reportsNumberNegative}
                 fillOpacity={entry.projected ? PROJECTED_OPACITY : 1}
+                style={{
+                  cursor:
+                    onBarClick && !entry.projected ? 'pointer' : undefined,
+                }}
               />
             ))}
           </Bar>

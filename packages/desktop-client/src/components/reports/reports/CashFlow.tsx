@@ -197,6 +197,28 @@ function CashFlowInner({ widget }: CashFlowInnerProps) {
   const { isNarrowWidth } = useResponsive();
   const updateDashboardWidgetMutation = useUpdateDashboardWidgetMutation();
 
+  function handleBarClick(date: Date, type: 'income' | 'expenses') {
+    const dateStr = monthUtils.dayFromDate(date);
+    const startDate = isConcise ? monthUtils.firstDayOfMonth(dateStr) : dateStr;
+    const endDate = isConcise ? monthUtils.lastDayOfMonth(dateStr) : dateStr;
+
+    const amountCondition: RuleConditionEntity =
+      type === 'income'
+        ? { field: 'amount', op: 'gte', value: 1 }
+        : { field: 'amount', op: 'lte', value: -1 };
+
+    const filterConditions: RuleConditionEntity[] = [
+      ...conditions,
+      { field: 'account', op: 'onBudget', value: '' },
+      { field: 'date', op: 'gte', value: startDate },
+      { field: 'date', op: 'lte', value: endDate },
+      amountCondition,
+      { field: 'transfer', op: 'is', value: false },
+    ];
+
+    navigate('/accounts', { state: { goBack: true, filterConditions } });
+  }
+
   async function onSaveWidget() {
     if (!widget) {
       throw new Error('No widget that could be saved.');
@@ -496,6 +518,7 @@ function CashFlowInner({ widget }: CashFlowInnerProps) {
           graphData={graphData}
           isConcise={isConcise}
           showBalance={showBalance}
+          onBarClick={handleBarClick}
         />
 
         <View
