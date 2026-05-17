@@ -2,6 +2,7 @@
 import MockDate from 'mockdate';
 
 import { aqlQuery } from '#server/aql';
+import * as db from '#server/db';
 import { loadMappings } from '#server/db/mappings';
 import { loadRules, updateRule } from '#server/transactions/transaction-rules';
 import { q } from '#shared/query';
@@ -11,8 +12,10 @@ import {
   areConditionValuesEqual,
   createSchedule,
   deleteSchedule,
+  postTransactionForSchedule,
   setNextDate,
   skipNextDate,
+  trackJSONPaths,
   updateConditions,
   updateSchedule,
 } from './app';
@@ -497,6 +500,67 @@ describe('schedule app', () => {
       row = res.data[0];
 
       expect(row.next_date).toBe('2020-12-11');
+    });
+  });
+
+  describe('scheduled transfers', () => {
+    it('posting a schedule with a transfer payee creates the linked counterpart transaction', async () => {
+      await db.insertAccount({ id: 'one', name: 'one' });
+      await db.insertAccount({ id: 'two', name: 'two' });
+      const transferToOne = await db.insertPayee({
+        name: '',
+        transfer_acct: 'one',
+      });
+      const transferToTwo = await db.insertPayee({
+        name: '',
+        transfer_acct: 'two',
+      });
+
+      // Mirror production setup: keep `schedules_json_paths` (which
+      // resolves `_payee`/`_account`/`_amount`) in sync with rule changes.
+      const removeSyncListener = trackJSONPaths();
+
+      const id = await createSchedule({
+        conditions: [
+          { op: 'is', field: 'date', value: '2020-12-15' },
+          { op: 'is', field: 'account', value: 'one' },
+          { op: 'is', field: 'payee', value: transferToTwo },
+          { op: 'is', field: 'amount', value: 5000 },
+        ],
+      });
+
+      await postTransactionForSchedule({ id });
+
+      const transactions = await db.all<db.DbViewTransaction>(
+        `SELECT * FROM v_transactions WHERE schedule = ? ORDER BY amount DESC`,
+        [id],
+      );
+
+      expect(transactions).toHaveLength(2);
+
+      const [source, counterpart] = transactions;
+
+      expect(source).toMatchObject({
+        account: 'one',
+        amount: 5000,
+        payee: transferToTwo,
+        date: 20201215,
+        schedule: id,
+      });
+
+      expect(counterpart).toMatchObject({
+        account: 'two',
+        amount: -5000,
+        payee: transferToOne,
+        date: 20201215,
+        schedule: id,
+      });
+
+      // The two transactions reference each other as a transfer pair
+      expect(source.transfer_id).toBe(counterpart.id);
+      expect(counterpart.transfer_id).toBe(source.id);
+
+      removeSyncListener();
     });
   });
 });

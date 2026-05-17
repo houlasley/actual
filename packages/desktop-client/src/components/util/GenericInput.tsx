@@ -33,6 +33,9 @@ type GenericInputProps = {
   ref?: Ref<HTMLInputElement>;
   style?: CSSProperties;
   inputStyle?: CSSProperties;
+  // Only applies to the `payee` field. Enables the "Make transfer"
+  // option so a transfer payee can be selected (e.g. scheduled transfers).
+  showMakeTransfer?: boolean;
 } & (
   | ((
       | {
@@ -121,6 +124,7 @@ export const GenericInput = ({
   ref,
   style,
   inputStyle,
+  showMakeTransfer = false,
   ...props
 }: GenericInputProps) => {
   const dispatch = useDispatch();
@@ -152,7 +156,7 @@ export const GenericInput = ({
           content = (
             <PayeeAutocomplete
               {...multiProps}
-              showMakeTransfer={false}
+              showMakeTransfer={showMakeTransfer}
               openOnFocus={!isNarrowWidth}
               updateOnValueChange={isNarrowWidth}
               inputProps={{

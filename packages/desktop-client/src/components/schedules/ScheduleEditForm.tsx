@@ -28,8 +28,10 @@ import { SelectedItemsButton } from '#components/table';
 import { SimpleTransactionsTable } from '#components/transactions/SimpleTransactionsTable';
 import { AmountInput, BetweenAmountInput } from '#components/util/AmountInput';
 import { GenericInput } from '#components/util/GenericInput';
+import { useAccounts } from '#hooks/useAccounts';
 import { useDateFormat } from '#hooks/useDateFormat';
 import { useLocale } from '#hooks/useLocale';
+import { usePayees } from '#hooks/usePayees';
 import { SelectedProvider } from '#hooks/useSelected';
 import type { Actions } from '#hooks/useSelected';
 
@@ -119,6 +121,16 @@ export function ScheduleEditForm({
   const { t } = useTranslation();
   const dateFormat = useDateFormat() || 'MM/dd/yyyy';
   const { isNarrowWidth } = useResponsive();
+  const { data: payees = [] } = usePayees();
+  const { data: accounts = [] } = useAccounts();
+
+  const transferAccount = (() => {
+    const payee = payees.find(p => p.id === fields.payee);
+    if (!payee?.transfer_acct) {
+      return null;
+    }
+    return accounts.find(a => a.id === payee.transfer_acct) ?? null;
+  })();
 
   return (
     <>
@@ -154,11 +166,26 @@ export function ScheduleEditForm({
             <GenericInput
               type="id"
               field="payee"
+              showMakeTransfer
               value={fields.payee || ''}
               onChange={id =>
                 dispatch({ type: 'set-field', field: 'payee', value: id })
               }
             />
+            {transferAccount && (
+              <Text
+                style={{
+                  color: theme.pageTextLight,
+                  fontSize: 12,
+                  marginTop: 3,
+                }}
+              >
+                <Trans>
+                  This schedule will transfer to/from{' '}
+                  {{ accountName: transferAccount.name }}
+                </Trans>
+              </Text>
+            )}
           </FormField>
 
           <FormField style={{ flex: 1 }}>

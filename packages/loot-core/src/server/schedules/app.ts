@@ -458,7 +458,7 @@ function onRuleUpdate(rule) {
   }
 }
 
-function trackJSONPaths() {
+export function trackJSONPaths() {
   // Populate the table
   db.transaction(() => {
     getRules().forEach(rule => {
@@ -482,7 +482,7 @@ function onApplySync(oldValues, newValues) {
 // This is the service that move schedules forward automatically and
 // posts transactions
 
-async function postTransactionForSchedule({
+export async function postTransactionForSchedule({
   id,
   today,
 }: {
