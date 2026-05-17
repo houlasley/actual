@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useParams } from 'react-router';
 
@@ -12,10 +18,14 @@ import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 import { send } from '@actual-app/core/platform/client/connection';
 import * as monthUtils from '@actual-app/core/shared/months';
+import { q } from '@actual-app/core/shared/query';
+import type { Query } from '@actual-app/core/shared/query';
+import { ungroupTransactions } from '@actual-app/core/shared/transactions';
 import type {
   CashFlowWidget,
   RuleConditionEntity,
   TimeFrame,
+  TransactionEntity,
 } from '@actual-app/core/types/models';
 import * as d from 'date-fns';
 
@@ -39,12 +49,22 @@ import {
 } from '#components/reports/spreadsheets/cash-flow-spreadsheet';
 import { useCashFlowScheduledTransactions } from '#components/reports/useCashFlowScheduledTransactions';
 import { useReport } from '#components/reports/useReport';
+import type { TableHandleRef } from '#components/table';
+import { TransactionList } from '#components/transactions/TransactionList';
+import { useAccounts } from '#hooks/useAccounts';
+import { SchedulesProvider } from '#hooks/useCachedSchedules';
+import { useCategories } from '#hooks/useCategories';
 import { useDashboardWidget } from '#hooks/useDashboardWidget';
+import { useDateFormat } from '#hooks/useDateFormat';
 import { useFormat } from '#hooks/useFormat';
 import { useLocale } from '#hooks/useLocale';
 import { useNavigate } from '#hooks/useNavigate';
+import { usePayees } from '#hooks/usePayees';
 import { useRuleConditionFilters } from '#hooks/useRuleConditionFilters';
+import { SelectedProviderWithItems } from '#hooks/useSelected';
+import { SplitsExpandedProvider } from '#hooks/useSplitsExpanded';
 import { useSyncedPref } from '#hooks/useSyncedPref';
+import { useTransactions } from '#hooks/useTransactions';
 import { addNotification } from '#notifications/notificationsSlice';
 import { useDispatch } from '#redux';
 import { useUpdateDashboardWidgetMutation } from '#reports/mutations';
@@ -71,6 +91,11 @@ export function CashFlow() {
 
 type CashFlowInnerProps = {
   widget?: CashFlowWidget;
+};
+
+type SelectedBar = {
+  date: Date;
+  type: 'income' | 'expenses';
 };
 
 function CashFlowInner({ widget }: CashFlowInnerProps) {
@@ -103,6 +128,29 @@ function CashFlowInner({ widget }: CashFlowInnerProps) {
     widget?.meta?.showBalance ?? true,
   );
   const [latestTransaction, setLatestTransaction] = useState('');
+
+  const [selectedBar, setSelectedBar] = useState<SelectedBar | null>(null);
+  const [barQuery, setBarQuery] = useState<Query | undefined>(undefined);
+  const [sortField, setSortField] = useState('');
+  const [ascDesc, setAscDesc] = useState<'asc' | 'desc'>('desc');
+
+  const table = useRef<TableHandleRef<TransactionEntity>>(null);
+
+  const { data: accounts = [] } = useAccounts();
+  const { data: payees = [] } = usePayees();
+  const { data: { grouped: categoryGroups } = { grouped: [] } } =
+    useCategories();
+  const dateFormat = useDateFormat();
+
+  const {
+    transactions: transactionsGrouped,
+    fetchNextPage: loadMoreTransactions,
+  } = useTransactions({ query: barQuery });
+
+  const allTransactions = useMemo(
+    () => ungroupTransactions(transactionsGrouped as TransactionEntity[]),
+    [transactionsGrouped],
+  );
 
   const isConcise = isConciseTimeRange(start, end);
 
@@ -187,37 +235,79 @@ function CashFlowInner({ widget }: CashFlowInnerProps) {
     }
   }, [latestTransaction, widget?.meta?.timeFrame]);
 
+  useEffect(() => {
+    if (!selectedBar) {
+      setBarQuery(undefined);
+      return;
+    }
+
+    const dateStr = monthUtils.dayFromDate(selectedBar.date);
+    const startDate = isConcise
+      ? monthUtils.firstDayOfMonth(dateStr)
+      : dateStr;
+    const endDate = isConcise ? monthUtils.lastDayOfMonth(dateStr) : dateStr;
+    const conditionsOpKey = conditionsOp === 'or' ? '$or' : '$and';
+    const amountFilter =
+      selectedBar.type === 'income'
+        ? { amount: { $gt: 0 } }
+        : { amount: { $lt: 0 } };
+
+    send('make-filters-from-conditions', {
+      conditions: conditions.filter(cond => !cond.customName),
+    })
+      .then((result: { filters: unknown[] }) => {
+        const baseQuery = q('transactions')
+          .filter({ [conditionsOpKey]: result.filters })
+          .filter({
+            $and: [
+              { date: { $gte: startDate } },
+              { date: { $lte: endDate } },
+              { 'account.offbudget': false },
+              { 'payee.transfer_acct': null },
+              amountFilter,
+            ],
+          });
+
+        const sortedQuery = sortField
+          ? baseQuery.orderBy({ [getField(sortField)]: ascDesc })
+          : baseQuery.orderBy({ date: 'desc' });
+
+        setBarQuery(sortedQuery.select('*').options({ splits: 'grouped' }));
+      })
+      .catch((error: unknown) => {
+        console.error('Error generating filters:', error);
+      });
+  }, [selectedBar, conditions, conditionsOp, isConcise, sortField, ascDesc]);
+
   function onChangeDates(start: string, end: string, mode: TimeFrame['mode']) {
     setStart(start);
     setEnd(end);
     setMode(mode);
   }
 
+  function handleBarClick(date: Date, type: 'income' | 'expenses') {
+    setSelectedBar(prev =>
+      prev?.date.getTime() === date.getTime() && prev.type === type
+        ? null
+        : { date, type },
+    );
+  }
+
+  const onSort = useCallback(
+    (headerClicked: string, newAscDesc: 'asc' | 'desc') => {
+      if (headerClicked === sortField) {
+        setAscDesc(newAscDesc);
+      } else {
+        setSortField(headerClicked);
+        setAscDesc('desc');
+      }
+    },
+    [sortField],
+  );
+
   const navigate = useNavigate();
   const { isNarrowWidth } = useResponsive();
   const updateDashboardWidgetMutation = useUpdateDashboardWidgetMutation();
-
-  function handleBarClick(date: Date, type: 'income' | 'expenses') {
-    const dateStr = monthUtils.dayFromDate(date);
-    const startDate = isConcise ? monthUtils.firstDayOfMonth(dateStr) : dateStr;
-    const endDate = isConcise ? monthUtils.lastDayOfMonth(dateStr) : dateStr;
-
-    const amountCondition: RuleConditionEntity =
-      type === 'income'
-        ? { field: 'amount', op: 'gte', value: 1 }
-        : { field: 'amount', op: 'lte', value: -1 };
-
-    const filterConditions: RuleConditionEntity[] = [
-      ...conditions,
-      { field: 'account', op: 'onBudget', value: '' },
-      { field: 'date', op: 'gte', value: startDate },
-      { field: 'date', op: 'lte', value: endDate },
-      amountCondition,
-      { field: 'transfer', op: 'is', value: false },
-    ];
-
-    navigate('/accounts', { state: { goBack: true, filterConditions } });
-  }
 
   async function onSaveWidget() {
     if (!widget) {
@@ -293,6 +383,14 @@ function CashFlowInner({ widget }: CashFlowInnerProps) {
 
   const hasProjected =
     projectedTotalIncome !== 0 || projectedTotalExpenses !== 0;
+
+  const selectedBarLabel = selectedBar
+    ? d.format(
+        selectedBar.date,
+        isConcise ? 'MMMM yyyy' : 'MMMM d, yyyy',
+        { locale },
+      )
+    : '';
 
   return (
     <Page
@@ -521,6 +619,103 @@ function CashFlowInner({ widget }: CashFlowInnerProps) {
           onBarClick={handleBarClick}
         />
 
+        {selectedBar && (
+          <View style={{ marginTop: 20 }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                paddingBottom: 10,
+                borderBottom: `1px solid ${theme.tableBorder}`,
+                marginBottom: 4,
+              }}
+            >
+              <Text style={{ fontWeight: 600, fontSize: 14 }}>
+                {selectedBar.type === 'income'
+                  ? t('Income transactions')
+                  : t('Expense transactions')}
+                {' — '}
+                {selectedBarLabel}
+              </Text>
+              <Button
+                variant="bare"
+                onPress={() => setSelectedBar(null)}
+                style={{ color: theme.pageTextSubdued }}
+              >
+                <Trans>Close</Trans>
+              </Button>
+            </View>
+            <View style={{ flex: '1 0 300px' }}>
+              <SelectedProviderWithItems
+                name="transactions"
+                items={[]}
+                fetchAllIds={async () => []}
+                registerDispatch={() => {}}
+                selectAllFilter={(item: TransactionEntity) =>
+                  !item._unmatched && !item.is_parent
+                }
+              >
+                <SchedulesProvider query={undefined}>
+                  <SplitsExpandedProvider initialMode="collapse">
+                    <TransactionList
+                      tableRef={table}
+                      account={undefined}
+                      transactions={transactionsGrouped}
+                      allTransactions={allTransactions}
+                      loadMoreTransactions={loadMoreTransactions}
+                      accounts={accounts}
+                      category={undefined}
+                      categoryGroups={categoryGroups}
+                      payees={payees}
+                      balances={null}
+                      showBalances={false}
+                      showReconciled
+                      showCleared={false}
+                      showAccount
+                      isAdding={false}
+                      isNew={() => false}
+                      isMatched={() => false}
+                      dateFormat={dateFormat}
+                      hideFraction={false}
+                      renderEmpty={() => (
+                        <View
+                          style={{
+                            color: theme.tableText,
+                            marginTop: 20,
+                            textAlign: 'center',
+                            fontStyle: 'italic',
+                          }}
+                        >
+                          <Trans>No transactions</Trans>
+                        </View>
+                      )}
+                      onSort={onSort}
+                      sortField={sortField}
+                      ascDesc={ascDesc}
+                      onChange={() => {}}
+                      onRefetch={() => {}}
+                      onCloseAddTransaction={() => {}}
+                      onCreatePayee={async () => null}
+                      onApplyFilter={() => {}}
+                      onBatchDelete={() => {}}
+                      onBatchDuplicate={() => {}}
+                      onBatchLinkSchedule={() => {}}
+                      onBatchUnlinkSchedule={() => {}}
+                      onCreateRule={() => {}}
+                      onScheduleAction={() => {}}
+                      onMakeAsNonSplitTransactions={() => {}}
+                      showSelection={false}
+                      allowSplitTransaction={false}
+                      allowReorder={false}
+                    />
+                  </SplitsExpandedProvider>
+                </SchedulesProvider>
+              </SelectedProviderWithItems>
+            </View>
+          </View>
+        )}
+
         <View
           style={{
             marginTop: 30,
@@ -550,4 +745,25 @@ function CashFlowInner({ widget }: CashFlowInnerProps) {
       </View>
     </Page>
   );
+}
+
+function getField(field?: string) {
+  if (!field) {
+    return 'date';
+  }
+
+  switch (field) {
+    case 'account':
+      return 'account.name';
+    case 'payee':
+      return 'payee.name';
+    case 'category':
+      return 'category.name';
+    case 'payment':
+      return 'amount';
+    case 'deposit':
+      return 'amount';
+    default:
+      return field;
+  }
 }
