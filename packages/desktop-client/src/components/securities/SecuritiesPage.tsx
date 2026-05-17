@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { type FormEvent, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
@@ -30,6 +30,8 @@ import { Page } from '#components/Page';
 import {
   securitiesQueries,
   useDeleteSecurityMutation,
+  useFetchAllSecurityPricesMutation,
+  useFetchSecurityPricesMutation,
   useSetSecurityPricesMutation,
 } from '#securities';
 
@@ -168,6 +170,125 @@ function PriceChart({ prices }: PriceChartProps) {
   );
 }
 
+type AddPriceFormProps = {
+  security: SecurityEntity;
+};
+
+function AddPriceForm({ security }: AddPriceFormProps) {
+  const { t } = useTranslation();
+  const setPrices = useSetSecurityPricesMutation();
+  const today = new Date().toISOString().slice(0, 10);
+  const [date, setDate] = useState(today);
+  const [priceStr, setPriceStr] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const onSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(false);
+
+    if (!DATE_REGEX.test(date)) {
+      setError(t('Date must be in YYYY-MM-DD format'));
+      return;
+    }
+    const price = Number(priceStr);
+    if (!Number.isFinite(price) || price <= 0) {
+      setError(t('Price must be a positive number'));
+      return;
+    }
+
+    setPrices.mutate(
+      { security: security.id, prices: [{ date, price: priceToInteger(price) }] },
+      {
+        onSuccess: () => {
+          setPriceStr('');
+          setSuccess(true);
+          setTimeout(() => setSuccess(false), 2000);
+        },
+        onError: err => setError(err instanceof Error ? err.message : String(err)),
+      },
+    );
+  };
+
+  return (
+    <View style={{ marginBottom: 20 }}>
+      <Text
+        style={{
+          fontSize: 15,
+          fontWeight: 600,
+          marginBottom: 10,
+          color: theme.tableText,
+        }}
+      >
+        <Trans>Add price manually</Trans>
+      </Text>
+      <form onSubmit={onSubmit}>
+        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={{ fontSize: 12, color: theme.tableTextLight, marginBottom: 4 }}
+            >
+              <Trans>Date</Trans>
+            </Text>
+            <input
+              type="date"
+              value={date}
+              onChange={e => setDate(e.target.value)}
+              className={css({
+                padding: '6px 8px',
+                fontSize: 13,
+                border: `1px solid ${theme.tableBorder}`,
+                borderRadius: 4,
+                background: theme.tableBackground,
+                color: theme.tableText,
+                width: '100%',
+              })}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={{ fontSize: 12, color: theme.tableTextLight, marginBottom: 4 }}
+            >
+              <Trans>Price ($)</Trans>
+            </Text>
+            <input
+              type="number"
+              step="0.0001"
+              min="0"
+              placeholder="0.0000"
+              value={priceStr}
+              onChange={e => setPriceStr(e.target.value)}
+              className={css({
+                padding: '6px 8px',
+                fontSize: 13,
+                border: `1px solid ${theme.tableBorder}`,
+                borderRadius: 4,
+                background: theme.tableBackground,
+                color: theme.tableText,
+                width: '100%',
+              })}
+            />
+          </View>
+          <Button
+            type="submit"
+            variant="primary"
+            isDisabled={setPrices.isPending}
+          >
+            <Trans>Add</Trans>
+          </Button>
+        </View>
+        {error && <FormError style={{ marginTop: 6 }}>{error}</FormError>}
+        {success && (
+          <Text style={{ fontSize: 12, color: theme.noticeTextLight, marginTop: 6 }}>
+            <Trans>Price added</Trans>
+          </Text>
+        )}
+      </form>
+    </View>
+  );
+}
+
 type SecurityDetailProps = {
   security: SecurityEntity;
 };
@@ -176,8 +297,10 @@ function SecurityDetail({ security }: SecurityDetailProps) {
   const { t } = useTranslation();
   const { data: prices = [] } = useQuery(securitiesQueries.prices(security.id));
   const setPrices = useSetSecurityPricesMutation();
+  const fetchPrices = useFetchSecurityPricesMutation();
   const deleteSecurity = useDeleteSecurityMutation();
   const [error, setError] = useState<string | null>(null);
+  const [fetchStatus, setFetchStatus] = useState<string | null>(null);
 
   const sortedPrices = [...prices].sort((a, b) => b.date.localeCompare(a.date));
   const latestPrice = sortedPrices[0];
@@ -197,6 +320,31 @@ function SecurityDetail({ security }: SecurityDetailProps) {
     };
     reader.onerror = () => setError(t('Could not read the file'));
     reader.readAsText(file);
+  };
+
+  const onFetchPrices = () => {
+    setError(null);
+    setFetchStatus(t('Fetching…'));
+    fetchPrices.mutate(
+      { id: security.id },
+      {
+        onSuccess: result => {
+          if (result.error) {
+            setFetchStatus(null);
+            setError(result.error);
+          } else {
+            setFetchStatus(
+              t('Fetched {{count}} price(s)', { count: result.upserted }),
+            );
+            setTimeout(() => setFetchStatus(null), 3000);
+          }
+        },
+        onError: e => {
+          setFetchStatus(null);
+          setError(e instanceof Error ? e.message : String(e));
+        },
+      },
+    );
   };
 
   const onDelete = () => {
@@ -245,6 +393,17 @@ function SecurityDetail({ security }: SecurityDetailProps) {
           </View>
         )}
         <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Button
+            variant="bare"
+            onPress={onFetchPrices}
+            isDisabled={fetchPrices.isPending}
+          >
+            {fetchPrices.isPending ? (
+              <Trans>Fetching…</Trans>
+            ) : (
+              <Trans>Fetch prices</Trans>
+            )}
+          </Button>
           <label
             className={css({
               fontSize: 13,
@@ -269,6 +428,18 @@ function SecurityDetail({ security }: SecurityDetailProps) {
         </View>
       </View>
       {error && <FormError style={{ marginBottom: 12 }}>{error}</FormError>}
+      {fetchStatus && (
+        <Text
+          style={{
+            fontSize: 12,
+            color: theme.noticeTextLight,
+            marginBottom: 12,
+          }}
+        >
+          {fetchStatus}
+        </Text>
+      )}
+      <AddPriceForm security={security} />
       <Text
         style={{
           fontSize: 15,
@@ -354,6 +525,8 @@ export function SecuritiesPage() {
   const { t } = useTranslation();
   const { data: securities = [] } = useQuery(securitiesQueries.list());
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const fetchAll = useFetchAllSecurityPricesMutation();
+  const [fetchAllStatus, setFetchAllStatus] = useState<string | null>(null);
 
   const selected =
     selectedId != null
@@ -362,8 +535,63 @@ export function SecuritiesPage() {
 
   const effectiveSelected = selected ?? securities[0] ?? null;
 
+  const onFetchAll = () => {
+    setFetchAllStatus(t('Fetching prices…'));
+    fetchAll.mutate(undefined, {
+      onSuccess: result => {
+        const msg =
+          result.errors.length > 0
+            ? t('Fetched {{fetched}} security prices. {{errorCount}} error(s).', {
+                fetched: result.fetched,
+                errorCount: result.errors.length,
+              })
+            : t('Fetched prices for {{count}} security/securities.', {
+                count: result.fetched,
+              });
+        setFetchAllStatus(msg);
+        setTimeout(() => setFetchAllStatus(null), 5000);
+      },
+      onError: e => {
+        setFetchAllStatus(
+          t('Error: {{message}}', {
+            message: e instanceof Error ? e.message : String(e),
+          }),
+        );
+        setTimeout(() => setFetchAllStatus(null), 5000);
+      },
+    });
+  };
+
   return (
     <Page header={t('Securities')}>
+      {securities.length > 0 && (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+            padding: '8px 20px',
+            borderBottom: `1px solid ${theme.tableBorder}`,
+          }}
+        >
+          <Button
+            variant="primary"
+            onPress={onFetchAll}
+            isDisabled={fetchAll.isPending}
+          >
+            {fetchAll.isPending ? (
+              <Trans>Fetching all prices…</Trans>
+            ) : (
+              <Trans>Fetch all prices</Trans>
+            )}
+          </Button>
+          {fetchAllStatus && (
+            <Text style={{ fontSize: 13, color: theme.noticeTextLight }}>
+              {fetchAllStatus}
+            </Text>
+          )}
+        </View>
+      )}
       <View style={{ flexDirection: 'row', flex: 1, gap: 0 }}>
         <View
           style={{

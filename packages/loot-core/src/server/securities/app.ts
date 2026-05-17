@@ -1,3 +1,5 @@
+import { fetch } from '#platform/server/fetch';
+import { logger } from '#platform/server/log';
 import { createApp } from '#server/app';
 import * as db from '#server/db';
 import { mutator } from '#server/mutators';
@@ -8,6 +10,7 @@ import {
   computeHoldings,
   holdingGain,
   holdingMarketValue,
+  priceToInteger,
 } from '#shared/securities';
 import type {
   HoldingEntity,
@@ -43,6 +46,8 @@ export type SecuritiesHandlers = {
   'investment-transaction-delete': typeof deleteInvestmentTransaction;
   'security-prices-get': typeof getSecurityPrices;
   'security-prices-set': typeof setSecurityPrices;
+  'security-prices-fetch': typeof fetchSecurityPrices;
+  'securities-prices-fetch-all': typeof fetchAllSecurityPrices;
 };
 
 export const app = createApp<SecuritiesHandlers>();
@@ -67,6 +72,8 @@ app.method(
 );
 app.method('security-prices-get', getSecurityPrices);
 app.method('security-prices-set', mutator(undoable(setSecurityPrices)));
+app.method('security-prices-fetch', mutator(fetchSecurityPrices));
+app.method('securities-prices-fetch-all', mutator(fetchAllSecurityPrices));
 
 async function getSecurities(): Promise<SecurityEntity[]> {
   const securities = await db.getSecurities();
@@ -331,4 +338,129 @@ async function setSecurityPrices({
     }
   });
   return { upserted };
+}
+
+type YahooChartResult = {
+  timestamp?: number[];
+  indicators?: {
+    quote?: Array<{ close?: (number | null)[] }>;
+  };
+};
+
+type YahooChartResponse = {
+  chart?: {
+    result?: YahooChartResult[] | null;
+    error?: { code: string; description: string } | null;
+  };
+};
+
+async function fetchYahooFinancePrices(
+  ticker: string,
+): Promise<Array<{ date: string; price: number }>> {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1y`;
+
+  let text: string;
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+    });
+    if (!res.ok) {
+      throw new Error(`Yahoo Finance returned ${res.status} for ${ticker}`);
+    }
+    text = await res.text();
+  } catch (e) {
+    if (e instanceof Error) throw e;
+    throw new Error(`Network error fetching prices for ${ticker}`);
+  }
+
+  let json: YahooChartResponse;
+  try {
+    json = JSON.parse(text) as YahooChartResponse;
+  } catch {
+    throw new Error(`Invalid JSON from Yahoo Finance for ${ticker}`);
+  }
+
+  if (json?.chart?.error) {
+    throw new Error(
+      `Yahoo Finance error for ${ticker}: ${json.chart.error.description}`,
+    );
+  }
+
+  const result = json?.chart?.result?.[0];
+  if (!result) {
+    throw new Error(`No price data found for ${ticker}`);
+  }
+
+  const timestamps = result.timestamp ?? [];
+  const closes = result.indicators?.quote?.[0]?.close ?? [];
+  const prices: Array<{ date: string; price: number }> = [];
+
+  for (let i = 0; i < timestamps.length; i++) {
+    const close = closes[i];
+    if (close == null || !Number.isFinite(close) || close <= 0) continue;
+    const date = new Date(timestamps[i] * 1000).toISOString().slice(0, 10);
+    prices.push({ date, price: priceToInteger(close) });
+  }
+  return prices;
+}
+
+async function upsertPricesForSecurity(
+  securityId: string,
+  prices: Array<{ date: string; price: number }>,
+): Promise<number> {
+  let upserted = 0;
+  await batchMessages(async () => {
+    for (const { date, price } of prices) {
+      const dateInt = db.toDateRepr(date);
+      const existing = await db.getSecurityPriceOn(securityId, dateInt);
+      if (existing) {
+        await db.updateSecurityPrice({ id: existing.id, price, tombstone: 0 });
+      } else {
+        await db.insertSecurityPrice({ security: securityId, date: dateInt, price });
+      }
+      upserted++;
+    }
+  });
+  return upserted;
+}
+
+async function fetchSecurityPrices({
+  id,
+}: Pick<SecurityEntity, 'id'>): Promise<{ upserted: number; error?: string }> {
+  const security = await db.getSecurity(id);
+  if (!security) {
+    throw new Error('Security not found');
+  }
+  try {
+    const prices = await fetchYahooFinancePrices(security.ticker);
+    const upserted = await upsertPricesForSecurity(id, prices);
+    return { upserted };
+  } catch (e) {
+    const error = e instanceof Error ? e.message : String(e);
+    logger.log(`Failed to fetch prices for ${security.ticker}: ${error}`);
+    return { upserted: 0, error };
+  }
+}
+
+async function fetchAllSecurityPrices(): Promise<{
+  fetched: number;
+  errors: string[];
+}> {
+  const securities = await db.getSecurities();
+  let fetched = 0;
+  const errors: string[] = [];
+
+  for (const security of securities) {
+    try {
+      const prices = await fetchYahooFinancePrices(security.ticker);
+      await upsertPricesForSecurity(security.id, prices);
+      fetched++;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.log(`Failed to fetch prices for ${security.ticker}: ${msg}`);
+      errors.push(`${security.ticker}: ${msg}`);
+    }
+  }
+
+  return { fetched, errors };
 }

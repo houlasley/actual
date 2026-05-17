@@ -167,3 +167,53 @@ export function useSetSecurityPricesMutation() {
     },
   });
 }
+
+type FetchSecurityPricesPayload = {
+  id: SecurityEntity['id'];
+};
+
+export function useFetchSecurityPricesMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id }: FetchSecurityPricesPayload) => {
+      const result: { upserted: number; error?: string } = await send(
+        'security-prices-fetch',
+        { id },
+      );
+      return result;
+    },
+    onSuccess: (_, { id }) => {
+      invalidateHoldings(queryClient);
+      invalidateQueries(queryClient, [
+        ...securitiesQueries.all(),
+        'prices',
+        id,
+      ]);
+    },
+    onError: error => {
+      console.error('Error fetching security prices:', error);
+    },
+  });
+}
+
+export function useFetchAllSecurityPricesMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      const result: { fetched: number; errors: string[] } = await send(
+        'securities-prices-fetch-all',
+        {},
+      );
+      return result;
+    },
+    onSuccess: () => {
+      invalidateHoldings(queryClient);
+      invalidateQueries(queryClient);
+    },
+    onError: error => {
+      console.error('Error fetching all security prices:', error);
+    },
+  });
+}
