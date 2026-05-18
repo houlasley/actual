@@ -1,6 +1,7 @@
 import type {
   AccountEntity,
   PayeeEntity,
+  RuleConditionEntity,
   ScheduleEntity,
 } from '@actual-app/core/types/models';
 import { describe, expect, it } from 'vitest';
@@ -153,6 +154,139 @@ describe('computeCashFlowScheduledTransactions', () => {
     });
 
     expect(result).toEqual([]);
+  });
+
+  describe('account condition filtering', () => {
+    const acct1 = makeAccount({ id: 'acct-1', name: 'Ally - Checking' });
+    const acct2 = makeAccount({
+      id: 'acct-2',
+      name: 'Ally - Checking Joint',
+    });
+    const accountsById = { 'acct-1': acct1, 'acct-2': acct2 };
+    const payeesById = { 'payee-1': makePayee() };
+
+    const sched1 = makeSchedule({ id: 'sched-1', _account: 'acct-1' });
+    const sched2 = makeSchedule({ id: 'sched-2', _account: 'acct-2' });
+
+    it('filters to the matching account with "is" condition', () => {
+      const conditions: RuleConditionEntity[] = [
+        { field: 'account', op: 'is', value: 'acct-1' },
+      ];
+      const result = computeCashFlowScheduledTransactions({
+        schedules: [sched1, sched2],
+        accountsById,
+        payeesById,
+        end: '2026-07',
+        today,
+        conditions,
+        conditionsOp: 'and',
+      });
+      expect(result.map(r => r.accountId)).toEqual(['acct-1']);
+    });
+
+    it('excludes the matching account with "isNot" condition', () => {
+      const conditions: RuleConditionEntity[] = [
+        { field: 'account', op: 'isNot', value: 'acct-1' },
+      ];
+      const result = computeCashFlowScheduledTransactions({
+        schedules: [sched1, sched2],
+        accountsById,
+        payeesById,
+        end: '2026-07',
+        today,
+        conditions,
+        conditionsOp: 'and',
+      });
+      expect(result.map(r => r.accountId)).toEqual(['acct-2']);
+    });
+
+    it('filters to listed accounts with "oneOf" condition', () => {
+      const conditions: RuleConditionEntity[] = [
+        { field: 'account', op: 'oneOf', value: ['acct-1'] },
+      ];
+      const result = computeCashFlowScheduledTransactions({
+        schedules: [sched1, sched2],
+        accountsById,
+        payeesById,
+        end: '2026-07',
+        today,
+        conditions,
+        conditionsOp: 'and',
+      });
+      expect(result.map(r => r.accountId)).toEqual(['acct-1']);
+    });
+
+    it('excludes listed accounts with "notOneOf" condition', () => {
+      const conditions: RuleConditionEntity[] = [
+        { field: 'account', op: 'notOneOf', value: ['acct-2'] },
+      ];
+      const result = computeCashFlowScheduledTransactions({
+        schedules: [sched1, sched2],
+        accountsById,
+        payeesById,
+        end: '2026-07',
+        today,
+        conditions,
+        conditionsOp: 'and',
+      });
+      expect(result.map(r => r.accountId)).toEqual(['acct-1']);
+    });
+
+    it('filters by name substring with "contains" condition', () => {
+      const conditions: RuleConditionEntity[] = [
+        { field: 'account', op: 'contains', value: 'Joint' },
+      ];
+      const result = computeCashFlowScheduledTransactions({
+        schedules: [sched1, sched2],
+        accountsById,
+        payeesById,
+        end: '2026-07',
+        today,
+        conditions,
+        conditionsOp: 'and',
+      });
+      expect(result.map(r => r.accountId)).toEqual(['acct-2']);
+    });
+
+    it('includes both accounts when conditionsOp is "or" with a non-account condition', () => {
+      // Cannot evaluate payee conditions against schedules, so all schedules pass
+      const conditions: RuleConditionEntity[] = [
+        { field: 'account', op: 'is', value: 'acct-1' },
+        { field: 'payee', op: 'is', value: 'payee-1' },
+      ];
+      const result = computeCashFlowScheduledTransactions({
+        schedules: [sched1, sched2],
+        accountsById,
+        payeesById,
+        end: '2026-07',
+        today,
+        conditions,
+        conditionsOp: 'or',
+      });
+      expect(result.map(r => r.accountId)).toEqual(['acct-1', 'acct-2']);
+    });
+
+    it('ignores customName conditions (display-only filters)', () => {
+      const conditions: RuleConditionEntity[] = [
+        {
+          field: 'account',
+          op: 'is',
+          value: 'acct-1',
+          customName: 'My Filter',
+        },
+      ];
+      const result = computeCashFlowScheduledTransactions({
+        schedules: [sched1, sched2],
+        accountsById,
+        payeesById,
+        end: '2026-07',
+        today,
+        conditions,
+        conditionsOp: 'and',
+      });
+      // customName conditions are excluded, so both accounts pass
+      expect(result.map(r => r.accountId)).toEqual(['acct-1', 'acct-2']);
+    });
   });
 
   it('expands a recurring monthly schedule across the range', () => {
