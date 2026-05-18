@@ -148,7 +148,7 @@ type CashFlowGraphProps = {
   isConcise: boolean;
   showBalance?: boolean;
   style?: CSSProperties;
-  onBarClick?: (date: Date, type: 'income' | 'expenses') => void;
+  onBarClick?: (date: Date, type: 'income' | 'expenses', projected: boolean) => void;
 };
 export function CashFlowGraph({
   graphData,
@@ -237,9 +237,7 @@ export function CashFlowGraph({
             onClick={
               onBarClick
                 ? (entry: DataItem) => {
-                    if (!entry.projected) {
-                      onBarClick(entry.date, 'income');
-                    }
+                    onBarClick(entry.date, 'income', entry.projected);
                   }
                 : undefined
             }
@@ -251,8 +249,7 @@ export function CashFlowGraph({
                 fill={theme.reportsNumberPositive}
                 fillOpacity={entry.projected ? PROJECTED_OPACITY : 1}
                 style={{
-                  cursor:
-                    onBarClick && !entry.projected ? 'pointer' : undefined,
+                  cursor: onBarClick ? 'pointer' : undefined,
                 }}
               />
             ))}
@@ -264,9 +261,7 @@ export function CashFlowGraph({
             onClick={
               onBarClick
                 ? (entry: DataItem) => {
-                    if (!entry.projected) {
-                      onBarClick(entry.date, 'expenses');
-                    }
+                    onBarClick(entry.date, 'expenses', entry.projected);
                   }
                 : undefined
             }
@@ -278,8 +273,7 @@ export function CashFlowGraph({
                 fill={theme.reportsNumberNegative}
                 fillOpacity={entry.projected ? PROJECTED_OPACITY : 1}
                 style={{
-                  cursor:
-                    onBarClick && !entry.projected ? 'pointer' : undefined,
+                  cursor: onBarClick ? 'pointer' : undefined,
                 }}
               />
             ))}

@@ -83,7 +83,16 @@ describe('computeCashFlowScheduledTransactions', () => {
       today,
     });
 
-    expect(result).toEqual([{ date: '2026-06-15', amount: -10000 }]);
+    expect(result).toEqual([
+      {
+        date: '2026-06-15',
+        amount: -10000,
+        scheduleId: 'sched-1',
+        scheduleName: undefined,
+        payeeId: 'payee-1',
+        accountId: 'acct-1',
+      },
+    ]);
   });
 
   it('excludes one-time schedules in the past portion of the range', () => {
@@ -177,9 +186,30 @@ describe('computeCashFlowScheduledTransactions', () => {
     });
 
     expect(result).toEqual([
-      { date: '2026-06-01', amount: -5000 },
-      { date: '2026-07-01', amount: -5000 },
-      { date: '2026-08-01', amount: -5000 },
+      {
+        date: '2026-06-01',
+        amount: -5000,
+        scheduleId: 'sched-1',
+        scheduleName: undefined,
+        payeeId: 'payee-1',
+        accountId: 'acct-1',
+      },
+      {
+        date: '2026-07-01',
+        amount: -5000,
+        scheduleId: 'sched-1',
+        scheduleName: undefined,
+        payeeId: 'payee-1',
+        accountId: 'acct-1',
+      },
+      {
+        date: '2026-08-01',
+        amount: -5000,
+        scheduleId: 'sched-1',
+        scheduleName: undefined,
+        payeeId: 'payee-1',
+        accountId: 'acct-1',
+      },
     ]);
   });
 });

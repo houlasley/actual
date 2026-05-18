@@ -20,6 +20,13 @@ import { useAccounts } from '#hooks/useAccounts';
 import { usePayeesById } from '#hooks/usePayees';
 import { getSchedulesQuery, useSchedules } from '#hooks/useSchedules';
 
+export type ScheduledCashFlowDisplayEntry = ScheduledCashFlowEntry & {
+  scheduleId: string;
+  scheduleName?: string;
+  payeeId: string;
+  accountId: string;
+};
+
 const MAX_RECURRING_ITERATIONS = 1000;
 
 type ComputeCashFlowScheduledTransactionsArgs = {
@@ -43,14 +50,14 @@ export function computeCashFlowScheduledTransactions({
   payeesById,
   end,
   today,
-}: ComputeCashFlowScheduledTransactionsArgs): ScheduledCashFlowEntry[] {
+}: ComputeCashFlowScheduledTransactionsArgs): ScheduledCashFlowDisplayEntry[] {
   const endDate = monthUtils.lastDayOfMonth(end);
 
   if (endDate <= today) {
     return [];
   }
 
-  const result: ScheduledCashFlowEntry[] = [];
+  const result: ScheduledCashFlowDisplayEntry[] = [];
 
   for (const schedule of schedules) {
     if (schedule.completed) continue;
@@ -70,12 +77,18 @@ export function computeCashFlowScheduledTransactions({
     if (!dateConditions) continue;
 
     const isRecurring = scheduleIsRecurring(dateConditions);
+    const displayFields = {
+      scheduleId: schedule.id,
+      scheduleName: schedule.name,
+      payeeId: schedule._payee,
+      accountId: schedule._account,
+    };
 
     if (!isRecurring) {
       // One-time schedule: include if it's in the future portion of the range
       const schedDate = schedule.next_date;
       if (schedDate && schedDate > today && schedDate <= endDate) {
-        result.push({ date: schedDate, amount });
+        result.push({ date: schedDate, amount, ...displayFields });
       }
     } else {
       // Recurring schedule: generate all occurrences from tomorrow to end of range
@@ -92,7 +105,7 @@ export function computeCashFlowScheduledTransactions({
         iterations < MAX_RECURRING_ITERATIONS
       ) {
         if (current > today) {
-          result.push({ date: current, amount });
+          result.push({ date: current, amount, ...displayFields });
         }
 
         // Advance to next occurrence
@@ -114,7 +127,7 @@ export function computeCashFlowScheduledTransactions({
  */
 export function useCashFlowScheduledTransactions(
   end: string,
-): ScheduledCashFlowEntry[] {
+): ScheduledCashFlowDisplayEntry[] {
   const schedulesQuery = useMemo(() => getSchedulesQuery(), []);
   const { schedules, isLoading: isSchedulesLoading } = useSchedules({
     query: schedulesQuery,
@@ -124,7 +137,7 @@ export function useCashFlowScheduledTransactions(
 
   const accountsById = useMemo(() => groupById(accounts), [accounts]);
 
-  return useMemo((): ScheduledCashFlowEntry[] => {
+  return useMemo((): ScheduledCashFlowDisplayEntry[] => {
     if (isSchedulesLoading) return [];
 
     return computeCashFlowScheduledTransactions({

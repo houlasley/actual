@@ -47,7 +47,10 @@ import {
   cashFlowByDate,
   isConciseTimeRange,
 } from '#components/reports/spreadsheets/cash-flow-spreadsheet';
-import { useCashFlowScheduledTransactions } from '#components/reports/useCashFlowScheduledTransactions';
+import {
+  useCashFlowScheduledTransactions,
+  type ScheduledCashFlowDisplayEntry,
+} from '#components/reports/useCashFlowScheduledTransactions';
 import { useReport } from '#components/reports/useReport';
 import type { TableHandleRef } from '#components/table';
 import { TransactionList } from '#components/transactions/TransactionList';
@@ -96,6 +99,7 @@ type CashFlowInnerProps = {
 type SelectedBar = {
   date: Date;
   type: 'income' | 'expenses';
+  projected: boolean;
 };
 
 function CashFlowInner({ widget }: CashFlowInnerProps) {
@@ -236,7 +240,7 @@ function CashFlowInner({ widget }: CashFlowInnerProps) {
   }, [latestTransaction, widget?.meta?.timeFrame]);
 
   useEffect(() => {
-    if (!selectedBar) {
+    if (!selectedBar || selectedBar.projected) {
       setBarQuery(undefined);
       return;
     }
@@ -285,13 +289,32 @@ function CashFlowInner({ widget }: CashFlowInnerProps) {
     setMode(mode);
   }
 
-  function handleBarClick(date: Date, type: 'income' | 'expenses') {
+  function handleBarClick(
+    date: Date,
+    type: 'income' | 'expenses',
+    projected: boolean,
+  ) {
     setSelectedBar(prev =>
       prev?.date.getTime() === date.getTime() && prev.type === type
         ? null
-        : { date, type },
+        : { date, type, projected },
     );
   }
+
+  const filteredScheduledEntries = useMemo((): ScheduledCashFlowDisplayEntry[] => {
+    if (!selectedBar?.projected) return [];
+    const dateStr = monthUtils.dayFromDate(selectedBar.date);
+    const startDate = isConcise
+      ? monthUtils.firstDayOfMonth(dateStr)
+      : dateStr;
+    const endDate = isConcise ? monthUtils.lastDayOfMonth(dateStr) : dateStr;
+    return scheduledTransactions.filter(entry => {
+      if (entry.date < startDate || entry.date > endDate) return false;
+      return selectedBar.type === 'income'
+        ? entry.amount > 0
+        : entry.amount < 0;
+    });
+  }, [selectedBar, scheduledTransactions, isConcise]);
 
   const onSort = useCallback(
     (headerClicked: string, newAscDesc: 'asc' | 'desc') => {
@@ -632,9 +655,13 @@ function CashFlowInner({ widget }: CashFlowInnerProps) {
               }}
             >
               <Text style={{ fontWeight: 600, fontSize: 14 }}>
-                {selectedBar.type === 'income'
-                  ? t('Income transactions')
-                  : t('Expense transactions')}
+                {selectedBar.projected
+                  ? selectedBar.type === 'income'
+                    ? t('Scheduled income')
+                    : t('Scheduled expenses')
+                  : selectedBar.type === 'income'
+                    ? t('Income transactions')
+                    : t('Expense transactions')}
                 {' — '}
                 {selectedBarLabel}
               </Text>
@@ -646,73 +673,176 @@ function CashFlowInner({ widget }: CashFlowInnerProps) {
                 <Trans>Close</Trans>
               </Button>
             </View>
-            <View style={{ flex: '1 0 300px' }}>
-              <SelectedProviderWithItems
-                name="transactions"
-                items={[]}
-                fetchAllIds={async () => []}
-                registerDispatch={() => {}}
-                selectAllFilter={(item: TransactionEntity) =>
-                  !item._unmatched && !item.is_parent
-                }
-              >
-                <SchedulesProvider query={undefined}>
-                  <SplitsExpandedProvider initialMode="collapse">
-                    <TransactionList
-                      tableRef={table}
-                      account={undefined}
-                      transactions={transactionsGrouped}
-                      allTransactions={allTransactions}
-                      loadMoreTransactions={loadMoreTransactions}
-                      accounts={accounts}
-                      category={undefined}
-                      categoryGroups={categoryGroups}
-                      payees={payees}
-                      balances={null}
-                      showBalances={false}
-                      showReconciled
-                      showCleared={false}
-                      showAccount
-                      isAdding={false}
-                      isNew={() => false}
-                      isMatched={() => false}
-                      dateFormat={dateFormat}
-                      hideFraction={false}
-                      renderEmpty={() => (
+
+            {selectedBar.projected ? (
+              <View style={{ flex: '1 0 200px' }}>
+                {filteredScheduledEntries.length === 0 ? (
+                  <View
+                    style={{
+                      color: theme.tableText,
+                      marginTop: 20,
+                      textAlign: 'center',
+                      fontStyle: 'italic',
+                    }}
+                  >
+                    <Trans>No scheduled transactions</Trans>
+                  </View>
+                ) : (
+                  <View>
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        paddingTop: 6,
+                        paddingBottom: 6,
+                        paddingLeft: 4,
+                        paddingRight: 4,
+                        borderBottom: `1px solid ${theme.tableBorder}`,
+                        color: theme.tableHeaderText,
+                        fontWeight: 600,
+                        fontSize: 12,
+                      }}
+                    >
+                      <Text style={{ flex: 1 }}>
+                        <Trans>Date</Trans>
+                      </Text>
+                      <Text style={{ flex: 2 }}>
+                        <Trans>Payee</Trans>
+                      </Text>
+                      <Text style={{ flex: 2 }}>
+                        <Trans>Account</Trans>
+                      </Text>
+                      <Text style={{ flex: 1, textAlign: 'right' }}>
+                        <Trans>Amount</Trans>
+                      </Text>
+                    </View>
+                    {filteredScheduledEntries.map((entry, idx) => {
+                      const payee = payees.find(p => p.id === entry.payeeId);
+                      const account = accounts.find(
+                        a => a.id === entry.accountId,
+                      );
+                      return (
                         <View
+                          key={idx}
                           style={{
+                            flexDirection: 'row',
+                            paddingTop: 8,
+                            paddingBottom: 8,
+                            paddingLeft: 4,
+                            paddingRight: 4,
+                            borderBottom: `1px solid ${theme.tableBorder}`,
                             color: theme.tableText,
-                            marginTop: 20,
-                            textAlign: 'center',
-                            fontStyle: 'italic',
+                            fontSize: 13,
                           }}
                         >
-                          <Trans>No transactions</Trans>
+                          <Text style={{ flex: 1, color: theme.tableText }}>
+                            {d.format(
+                              d.parseISO(entry.date),
+                              isConcise ? 'MMM yyyy' : 'MMM d, yyyy',
+                              { locale },
+                            )}
+                          </Text>
+                          <Text style={{ flex: 2, color: theme.tableText }}>
+                            {entry.scheduleName ||
+                              payee?.name ||
+                              t('Unknown payee')}
+                          </Text>
+                          <Text
+                            style={{
+                              flex: 2,
+                              color: theme.tableTextLight,
+                            }}
+                          >
+                            {account?.name || t('Unknown account')}
+                          </Text>
+                          <FinancialText
+                            style={{
+                              flex: 1,
+                              textAlign: 'right',
+                              color:
+                                entry.amount > 0
+                                  ? theme.reportsNumberPositive
+                                  : theme.reportsNumberNegative,
+                            }}
+                          >
+                            <PrivacyFilter>
+                              {format(entry.amount, 'financial')}
+                            </PrivacyFilter>
+                          </FinancialText>
                         </View>
-                      )}
-                      onSort={onSort}
-                      sortField={sortField}
-                      ascDesc={ascDesc}
-                      onChange={() => {}}
-                      onRefetch={() => {}}
-                      onCloseAddTransaction={() => {}}
-                      onCreatePayee={async () => null}
-                      onApplyFilter={() => {}}
-                      onBatchDelete={() => {}}
-                      onBatchDuplicate={() => {}}
-                      onBatchLinkSchedule={() => {}}
-                      onBatchUnlinkSchedule={() => {}}
-                      onCreateRule={() => {}}
-                      onScheduleAction={() => {}}
-                      onMakeAsNonSplitTransactions={() => {}}
-                      showSelection={false}
-                      allowSplitTransaction={false}
-                      allowReorder={false}
-                    />
-                  </SplitsExpandedProvider>
-                </SchedulesProvider>
-              </SelectedProviderWithItems>
-            </View>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+            ) : (
+              <View style={{ flex: '1 0 300px' }}>
+                <SelectedProviderWithItems
+                  name="transactions"
+                  items={[]}
+                  fetchAllIds={async () => []}
+                  registerDispatch={() => {}}
+                  selectAllFilter={(item: TransactionEntity) =>
+                    !item._unmatched && !item.is_parent
+                  }
+                >
+                  <SchedulesProvider query={undefined}>
+                    <SplitsExpandedProvider initialMode="collapse">
+                      <TransactionList
+                        tableRef={table}
+                        account={undefined}
+                        transactions={transactionsGrouped}
+                        allTransactions={allTransactions}
+                        loadMoreTransactions={loadMoreTransactions}
+                        accounts={accounts}
+                        category={undefined}
+                        categoryGroups={categoryGroups}
+                        payees={payees}
+                        balances={null}
+                        showBalances={false}
+                        showReconciled
+                        showCleared={false}
+                        showAccount
+                        isAdding={false}
+                        isNew={() => false}
+                        isMatched={() => false}
+                        dateFormat={dateFormat}
+                        hideFraction={false}
+                        renderEmpty={() => (
+                          <View
+                            style={{
+                              color: theme.tableText,
+                              marginTop: 20,
+                              textAlign: 'center',
+                              fontStyle: 'italic',
+                            }}
+                          >
+                            <Trans>No transactions</Trans>
+                          </View>
+                        )}
+                        onSort={onSort}
+                        sortField={sortField}
+                        ascDesc={ascDesc}
+                        onChange={() => {}}
+                        onRefetch={() => {}}
+                        onCloseAddTransaction={() => {}}
+                        onCreatePayee={async () => null}
+                        onApplyFilter={() => {}}
+                        onBatchDelete={() => {}}
+                        onBatchDuplicate={() => {}}
+                        onBatchLinkSchedule={() => {}}
+                        onBatchUnlinkSchedule={() => {}}
+                        onCreateRule={() => {}}
+                        onScheduleAction={() => {}}
+                        onMakeAsNonSplitTransactions={() => {}}
+                        showSelection={false}
+                        allowSplitTransaction={false}
+                        allowReorder={false}
+                      />
+                    </SplitsExpandedProvider>
+                  </SchedulesProvider>
+                </SelectedProviderWithItems>
+              </View>
+            )}
           </View>
         )}
 
