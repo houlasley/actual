@@ -23,6 +23,20 @@ This is the single source of truth for all commit and pull request rules that AI
 - **Never** force push to `main`/`master`
 - **Never** commit unless explicitly asked by the user
 
+## Automatic PR on Issue Completion
+
+When working on a GitHub issue, **automatically create a pull request when the work is complete** — do not wait to be asked.
+
+Steps to follow after finishing issue work:
+
+1. Complete the Pre-Commit Quality Checklist above
+2. Push the branch to the remote
+3. Open a PR with:
+   - Title prefixed with `[AI]`
+   - The `"AI generated"` label
+   - The issue linked in the body (e.g., `Closes #<issue-number>`)
+   - PR template left blank (do not fill it in)
+
 ## Pre-Commit Quality Checklist
 
 Before committing, ensure all of the following:
@@ -50,11 +64,6 @@ Before committing, ensure all of the following:
 
 Add the **"AI generated"** label to all AI-created pull requests. This helps maintainers understand the nature of the contribution.
 
-### PR Template: Do Not Fill In
-
-- **NEVER fill in the PR template** (`.github/PULL_REQUEST_TEMPLATE.md`). Leave all blank spaces and placeholder comments as-is. Humans are expected to fill in the Description, Related issue(s), Testing, and Checklist sections.
-- **Exception**: If a human **explicitly asks** you to fill out the PR template, then fill it out **in Chinese**, using Chinese characters (简体中文) for all content you add.
-
 ## Quick-Reference Workflow
 
 Follow these steps when committing and creating PRs:
@@ -64,7 +73,9 @@ Follow these steps when committing and creating PRs:
 3. Run `yarn lint:fix` — fix any remaining lint errors
 4. Run relevant tests (`yarn test` for all, or workspace-specific)
 5. Stage files and commit with `[AI]` prefix — do not skip hooks
-6. When creating a PR:
+6. Push the branch to the remote
+7. Create a PR (automatically, without waiting to be asked):
    - Use `[AI]` prefix in the title
    - Add the `"AI generated"` label
+   - Link the issue with `Closes #<issue-number>`
    - Leave the PR template blank (do not fill it in)
