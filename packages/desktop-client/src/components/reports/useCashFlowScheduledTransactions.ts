@@ -11,6 +11,7 @@ import { groupById } from '@actual-app/core/shared/util';
 import type {
   AccountEntity,
   PayeeEntity,
+  RuleConditionEntity,
   ScheduleEntity,
 } from '@actual-app/core/types/models';
 import * as d from 'date-fns';
@@ -37,7 +38,50 @@ type ComputeCashFlowScheduledTransactionsArgs = {
   end: string;
   /** Current day (`YYYY-MM-DD`). */
   today: string;
+  /** Rule conditions from the report filter (used to apply account filters). */
+  conditions?: RuleConditionEntity[];
+  /** How to combine multiple conditions ('and' | 'or'). */
+  conditionsOp?: 'and' | 'or';
 };
+
+type AccountCondition = Extract<RuleConditionEntity, { field: 'account' }>;
+
+function matchesAccountCondition(
+  accountId: string,
+  accountName: string,
+  cond: AccountCondition,
+): boolean {
+  switch (cond.op) {
+    case 'is':
+      return accountId === (cond.value as string);
+    case 'isNot':
+      return accountId !== (cond.value as string);
+    case 'oneOf':
+      return (cond.value as string[]).includes(accountId);
+    case 'notOneOf':
+      return !(cond.value as string[]).includes(accountId);
+    case 'contains':
+      return accountName
+        .toLowerCase()
+        .includes((cond.value as string).toLowerCase());
+    case 'doesNotContain':
+      return !accountName
+        .toLowerCase()
+        .includes((cond.value as string).toLowerCase());
+    case 'matches':
+      try {
+        return new RegExp(cond.value as string, 'i').test(accountName);
+      } catch {
+        return false;
+      }
+    case 'onBudget':
+      return true; // Already limited to on-budget accounts
+    case 'offBudget':
+      return false; // No off-budget accounts pass the earlier filter
+    default:
+      return true;
+  }
+}
 
 /**
  * Pure projection of future scheduled transactions for the cash flow report.
@@ -50,12 +94,33 @@ export function computeCashFlowScheduledTransactions({
   payeesById,
   end,
   today,
+  conditions = [],
+  conditionsOp = 'and',
 }: ComputeCashFlowScheduledTransactionsArgs): ScheduledCashFlowDisplayEntry[] {
   const endDate = monthUtils.lastDayOfMonth(end);
 
   if (endDate <= today) {
     return [];
   }
+
+  // Separate account conditions from other condition types so we can evaluate
+  // them against schedule._account. Conditions with customName are display-only
+  // and excluded from query filtering (matching the behaviour in cashFlowByDate).
+  const activeConditions = conditions.filter(c => !c.customName);
+  const accountConditions = activeConditions.filter(
+    (c): c is AccountCondition => c.field === 'account',
+  );
+  const hasNonAccountConditions = activeConditions.some(
+    c => c.field !== 'account',
+  );
+
+  // When conditionsOp is 'or' and there are non-account conditions we cannot
+  // evaluate those conditions against schedules, so we skip account filtering
+  // entirely to avoid incorrectly excluding schedules that would be matched by
+  // the non-account conditions in the actual query.
+  const shouldApplyAccountFilter =
+    accountConditions.length > 0 &&
+    !(conditionsOp === 'or' && hasNonAccountConditions);
 
   const result: ScheduledCashFlowDisplayEntry[] = [];
 
@@ -69,6 +134,18 @@ export function computeCashFlowScheduledTransactions({
     // Skip transfer schedules (payee has transfer_acct set)
     const payee = payeesById[schedule._payee];
     if (payee?.transfer_acct) continue;
+
+    // Apply account filter conditions
+    if (shouldApplyAccountFilter) {
+      const results = accountConditions.map(cond =>
+        matchesAccountCondition(schedule._account, account.name, cond),
+      );
+      const passes =
+        conditionsOp === 'or'
+          ? results.some(r => r)
+          : results.every(r => r);
+      if (!passes) continue;
+    }
 
     const amount = getScheduledAmount(schedule._amount);
     if (amount === 0) continue;
@@ -127,6 +204,8 @@ export function computeCashFlowScheduledTransactions({
  */
 export function useCashFlowScheduledTransactions(
   end: string,
+  conditions?: RuleConditionEntity[],
+  conditionsOp?: 'and' | 'or',
 ): ScheduledCashFlowDisplayEntry[] {
   const schedulesQuery = useMemo(() => getSchedulesQuery(), []);
   const { schedules, isLoading: isSchedulesLoading } = useSchedules({
@@ -146,6 +225,16 @@ export function useCashFlowScheduledTransactions(
       payeesById,
       end,
       today: monthUtils.currentDay(),
+      conditions,
+      conditionsOp,
     });
-  }, [schedules, isSchedulesLoading, accountsById, payeesById, end]);
+  }, [
+    schedules,
+    isSchedulesLoading,
+    accountsById,
+    payeesById,
+    end,
+    conditions,
+    conditionsOp,
+  ]);
 }

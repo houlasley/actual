@@ -69,7 +69,11 @@ export function CashFlowCard({
   );
 
   const isConcise = isConciseTimeRange(start, end);
-  const scheduledTransactions = useCashFlowScheduledTransactions(end);
+  const scheduledTransactions = useCashFlowScheduledTransactions(
+    end,
+    meta?.conditions,
+    meta?.conditionsOp ?? 'and',
+  );
 
   const params = useMemo(
     () =>

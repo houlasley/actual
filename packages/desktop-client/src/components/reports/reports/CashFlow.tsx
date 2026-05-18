@@ -158,7 +158,11 @@ function CashFlowInner({ widget }: CashFlowInnerProps) {
 
   const isConcise = isConciseTimeRange(start, end);
 
-  const scheduledTransactions = useCashFlowScheduledTransactions(end);
+  const scheduledTransactions = useCashFlowScheduledTransactions(
+    end,
+    conditions,
+    conditionsOp,
+  );
 
   const params = useMemo(
     () =>
