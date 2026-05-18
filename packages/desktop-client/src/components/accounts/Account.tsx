@@ -1275,6 +1275,20 @@ class AccountInternal extends PureComponent<
     });
   };
 
+  onLinkExistingToSchedule = (scheduleId: string) => {
+    this.props.dispatch(
+      pushModal({
+        modal: {
+          name: 'schedule-link-transaction',
+          options: {
+            scheduleId,
+            onTransactionLinked: this.refetchTransactions,
+          },
+        },
+      }),
+    );
+  };
+
   onCreateRule = async (ids: string[]) => {
     const { data } = await aqlQuery(
       q('transactions')
@@ -1912,6 +1926,7 @@ class AccountInternal extends PureComponent<
                   onBatchDuplicate={this.onBatchDuplicate}
                   onBatchLinkSchedule={this.onBatchLinkSchedule}
                   onBatchUnlinkSchedule={this.onBatchUnlinkSchedule}
+                  onLinkExistingToSchedule={this.onLinkExistingToSchedule}
                   onCreateRule={this.onCreateRule}
                   onScheduleAction={this.onScheduleAction}
                   onMakeAsNonSplitTransactions={

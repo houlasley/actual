@@ -334,6 +334,13 @@ export type Modal =
       };
     }
   | {
+      name: 'schedule-link-transaction';
+      options: {
+        scheduleId: ScheduleEntity['id'];
+        onTransactionLinked?: () => void;
+      };
+    }
+  | {
       name: 'schedules-discover';
     }
   | {

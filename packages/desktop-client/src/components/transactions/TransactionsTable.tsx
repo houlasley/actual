@@ -871,6 +871,7 @@ type TransactionProps = {
   onBatchDuplicate?: (ids: TransactionEntity['id'][]) => void;
   onBatchLinkSchedule?: (ids: TransactionEntity['id'][]) => void;
   onBatchUnlinkSchedule?: (ids: TransactionEntity['id'][]) => void;
+  onLinkExistingToSchedule?: (scheduleId: string) => void;
   onCreateRule?: (ids: TransactionEntity['id'][]) => void;
   onScheduleAction?: (
     name: 'skip' | 'post-transaction' | 'post-transaction-today' | 'complete',
@@ -933,6 +934,7 @@ const Transaction = memo(function Transaction({
   onBatchDuplicate,
   onBatchLinkSchedule,
   onBatchUnlinkSchedule,
+  onLinkExistingToSchedule,
   onCreateRule,
   onScheduleAction,
   onMakeAsNonSplitTransactions,
@@ -1369,6 +1371,9 @@ const Transaction = memo(function Transaction({
             onDuplicate={ids => onBatchDuplicate?.(ids)}
             onLinkSchedule={ids => onBatchLinkSchedule?.(ids)}
             onUnlinkSchedule={ids => onBatchUnlinkSchedule?.(ids)}
+            onLinkExistingTransaction={scheduleId =>
+              onLinkExistingToSchedule?.(scheduleId)
+            }
             onCreateRule={ids => onCreateRule?.(ids)}
             onScheduleAction={(name, ids) => onScheduleAction?.(name, ids)}
             onMakeAsNonSplitTransactions={ids =>
@@ -2265,6 +2270,7 @@ type TransactionTableInnerProps = {
   onBatchDuplicate: (ids: TransactionEntity['id'][]) => void;
   onBatchLinkSchedule: (ids: TransactionEntity['id'][]) => void;
   onBatchUnlinkSchedule: (ids: TransactionEntity['id'][]) => void;
+  onLinkExistingToSchedule?: (scheduleId: string) => void;
   onCheckNewEnter: (e: KeyboardEvent) => void;
   onCheckEnter: (e: KeyboardEvent) => void;
   onAddTemporary: (id?: TransactionEntity['id']) => void;
@@ -2457,6 +2463,7 @@ function TransactionTableInner({
         onBatchDuplicate={props.onBatchDuplicate}
         onBatchLinkSchedule={props.onBatchLinkSchedule}
         onBatchUnlinkSchedule={props.onBatchUnlinkSchedule}
+        onLinkExistingToSchedule={props.onLinkExistingToSchedule}
         onCreateRule={props.onCreateRule}
         onScheduleAction={props.onScheduleAction}
         onMakeAsNonSplitTransactions={props.onMakeAsNonSplitTransactions}
@@ -2655,6 +2662,7 @@ export type TransactionTableProps = {
   onBatchDuplicate: (ids: TransactionEntity['id'][]) => void;
   onBatchLinkSchedule: (ids: TransactionEntity['id'][]) => void;
   onBatchUnlinkSchedule: (ids: TransactionEntity['id'][]) => void;
+  onLinkExistingToSchedule?: (scheduleId: string) => void;
   onCreateRule: (ids: RuleEntity['id'][]) => void;
   onScheduleAction: (
     name: 'skip' | 'post-transaction' | 'post-transaction-today' | 'complete',
