@@ -15,6 +15,7 @@ import * as goCardlessApp from './app-gocardless/app-gocardless';
 import * as openidApp from './app-openid';
 import * as pluggai from './app-pluggyai/app-pluggyai';
 import * as secretApp from './app-secrets';
+import * as securitiesApp from './app-securities';
 import * as simpleFinApp from './app-simplefin/app-simplefin';
 import * as syncApp from './app-sync';
 import { config } from './load-config';
@@ -62,6 +63,7 @@ app.use('/simplefin', simpleFinApp.handlers);
 app.use('/pluggyai', pluggai.handlers);
 app.use('/enablebanking', enableBankingApp.handlers);
 app.use('/secret', secretApp.handlers);
+app.use('/securities', securitiesApp.handlers);
 
 if (config.get('corsProxy.enabled')) {
   app.use('/cors-proxy', corsApp.handlers);

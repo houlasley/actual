@@ -1,8 +1,11 @@
+import * as asyncStorage from '#platform/server/asyncStorage';
 import { fetch } from '#platform/server/fetch';
 import { logger } from '#platform/server/log';
 import { createApp } from '#server/app';
 import * as db from '#server/db';
 import { mutator } from '#server/mutators';
+import { post } from '#server/post';
+import { getServer } from '#server/server-config';
 import { batchMessages } from '#server/sync';
 import { undoable } from '#server/undo';
 import * as monthUtils from '#shared/months';
@@ -355,6 +358,23 @@ type YahooChartResponse = {
 };
 
 async function fetchYahooFinancePrices(
+  ticker: string,
+): Promise<Array<{ date: string; price: number }>> {
+  const serverConfig = getServer();
+  if (serverConfig) {
+    const userToken = await asyncStorage.getItem('user-token');
+    const { prices } = await post(
+      serverConfig.SECURITIES_SERVER + '/prices',
+      { ticker },
+      userToken ? { 'X-ACTUAL-TOKEN': userToken } : {},
+    );
+    return prices;
+  }
+
+  return fetchYahooFinancePricesDirect(ticker);
+}
+
+async function fetchYahooFinancePricesDirect(
   ticker: string,
 ): Promise<Array<{ date: string; price: number }>> {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1y`;
