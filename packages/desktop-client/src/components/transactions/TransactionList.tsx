@@ -253,6 +253,7 @@ type TransactionListProps = Pick<
   | 'onBatchDuplicate'
   | 'onBatchLinkSchedule'
   | 'onBatchUnlinkSchedule'
+  | 'onLinkExistingToSchedule'
   | 'onCloseAddTransaction'
   | 'onCreatePayee'
   | 'onCreateRule'
@@ -322,6 +323,7 @@ export function TransactionList({
   onBatchDuplicate,
   onBatchLinkSchedule,
   onBatchUnlinkSchedule,
+  onLinkExistingToSchedule,
   onCreateRule,
   onScheduleAction,
   onMakeAsNonSplitTransactions,
@@ -767,6 +769,7 @@ export function TransactionList({
         onBatchDuplicate={onBatchDuplicate}
         onBatchLinkSchedule={onBatchLinkSchedule}
         onBatchUnlinkSchedule={onBatchUnlinkSchedule}
+        onLinkExistingToSchedule={onLinkExistingToSchedule}
         onCreateRule={onCreateRule}
         onScheduleAction={onScheduleAction}
         onMakeAsNonSplitTransactions={onMakeAsNonSplitTransactions}

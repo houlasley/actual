@@ -26,6 +26,7 @@ type BalanceMenuProps = Omit<
   onDelete: (ids: string[]) => void;
   onLinkSchedule: (ids: string[]) => void;
   onUnlinkSchedule: (ids: string[]) => void;
+  onLinkExistingTransaction?: (scheduleId: string) => void;
   onCreateRule: (ids: string[]) => void;
   onScheduleAction: (
     name: 'skip' | 'post-transaction' | 'post-transaction-today' | 'complete',
@@ -42,6 +43,7 @@ export function TransactionMenu({
   onDelete,
   onLinkSchedule,
   onUnlinkSchedule,
+  onLinkExistingTransaction,
   onCreateRule,
   onScheduleAction,
   onMakeAsNonSplitTransactions,
@@ -183,6 +185,14 @@ export function TransactionMenu({
           case 'unlink-schedule':
             onUnlinkSchedule(selectedIds);
             break;
+          case 'link-existing-to-schedule': {
+            const previewId = selectedIds.find(id => isPreviewId(id));
+            if (previewId) {
+              const scheduleId = previewId.split('/')[1];
+              onLinkExistingTransaction?.(scheduleId);
+            }
+            break;
+          }
           case 'create-rule':
             onCreateRule(selectedIds);
             break;
@@ -207,6 +217,14 @@ export function TransactionMenu({
                 : []),
               ...(canBeCompleted
                 ? [{ name: 'complete', text: t('Mark as completed') }]
+                : []),
+              ...(selectedIds.length === 1
+                ? [
+                    {
+                      name: 'link-existing-to-schedule',
+                      text: t('Link to existing transaction'),
+                    },
+                  ]
                 : []),
             ]
           : [

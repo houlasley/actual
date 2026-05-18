@@ -87,6 +87,7 @@ import { DiscoverSchedules } from './schedules/DiscoverSchedules';
 import { PostsOfflineNotification } from './schedules/PostsOfflineNotification';
 import { ScheduleEditModal } from './schedules/ScheduleEditModal';
 import { ScheduleLink } from './schedules/ScheduleLink';
+import { ScheduleLinkTransaction } from './schedules/ScheduleLinkTransaction';
 import { UpcomingLength } from './schedules/UpcomingLength';
 
 export function Modals() {
@@ -271,6 +272,9 @@ export function Modals() {
 
         case 'schedule-link':
           return <ScheduleLink key={key} {...modal.options} />;
+
+        case 'schedule-link-transaction':
+          return <ScheduleLinkTransaction key={key} {...modal.options} />;
 
         case 'schedules-discover':
           return <DiscoverSchedules key={key} />;
