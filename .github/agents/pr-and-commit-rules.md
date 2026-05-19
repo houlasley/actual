@@ -23,6 +23,12 @@ This is the single source of truth for all commit and pull request rules that AI
 - **Never** force push to `main`/`master`
 - **Never** commit unless explicitly asked by the user
 
+## Issue Creation Rules
+
+When asked to create a GitHub issue, **always mention `@claude` in the issue body** (e.g., a line like `@claude please implement this.` near the top). This triggers the Claude GitHub integration so the work is picked up right away without waiting for a separate request.
+
+This applies to all agent-created issues, with no exceptions.
+
 ## Automatic PR on Issue Completion
 
 When working on a GitHub issue, **automatically create a pull request when the work is complete** — do not wait to be asked.
