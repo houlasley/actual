@@ -389,3 +389,21 @@ export type DbInvestmentTransaction = {
   sort_order: number;
   tombstone: 1 | 0;
 };
+
+export type DbLoanProfile = {
+  id: string;
+  account: DbAccount['id'];
+  /** Loan principal at origination, in integer minor units (cents). */
+  original_principal: number;
+  /** Annual interest rate in basis points (e.g. 375 = 3.75% APR). */
+  interest_rate: number;
+  /** Loan term in months. */
+  term_months: number;
+  /** Date integer (YYYYMMDD) of origination / first payment date. */
+  origination_date: number;
+  /** Scheduled monthly payment in integer minor units. */
+  payment_amount: number;
+  /** Monthly escrow in integer minor units; 0 if none. */
+  escrow_amount: number;
+  tombstone: 1 | 0;
+};

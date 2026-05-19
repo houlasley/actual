@@ -48,6 +48,7 @@ import type {
   DbClockMessage,
   DbHolding,
   DbInvestmentTransaction,
+  DbLoanProfile,
   DbPayee,
   DbPayeeMapping,
   DbSecurity,
@@ -1164,4 +1165,38 @@ export function deleteInvestmentTransaction(
   transaction: Pick<DbInvestmentTransaction, 'id'>,
 ) {
   return delete_('investment_transactions', transaction.id);
+}
+
+export function getLoanProfile(
+  accountId: DbLoanProfile['account'],
+): Promise<DbLoanProfile | undefined> {
+  return first<DbLoanProfile>(
+    `SELECT * FROM loan_profiles WHERE account = ? AND tombstone = 0`,
+    [accountId],
+  );
+}
+
+export function getLoanProfileById(
+  id: DbLoanProfile['id'],
+): Promise<DbLoanProfile | undefined> {
+  return first<DbLoanProfile>(
+    `SELECT * FROM loan_profiles WHERE id = ?`,
+    [id],
+  );
+}
+
+export function insertLoanProfile(
+  profile: Omit<DbLoanProfile, 'id' | 'tombstone'>,
+): Promise<DbLoanProfile['id']> {
+  return insertWithUUID('loan_profiles', profile);
+}
+
+export function updateLoanProfile(
+  profile: Partial<DbLoanProfile> & Pick<DbLoanProfile, 'id'>,
+) {
+  return update('loan_profiles', profile);
+}
+
+export function deleteLoanProfile(profile: Pick<DbLoanProfile, 'id'>) {
+  return delete_('loan_profiles', profile.id);
 }

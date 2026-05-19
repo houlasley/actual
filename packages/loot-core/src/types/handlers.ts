@@ -12,6 +12,7 @@ import type { PreferencesHandlers } from '#server/preferences/app';
 import type { ReportsHandlers } from '#server/reports/app';
 import type { RulesHandlers } from '#server/rules/app';
 import type { SchedulesHandlers } from '#server/schedules/app';
+import type { LoansHandlers } from '#server/loans/app';
 import type { SecuritiesHandlers } from '#server/securities/app';
 import type { SpreadsheetHandlers } from '#server/spreadsheet/app';
 import type { SyncHandlers } from '#server/sync/app';
@@ -43,6 +44,7 @@ export type Handlers = {} & ServerHandlers &
   EncryptionHandlers &
   TagsHandlers &
   SecuritiesHandlers &
+  LoansHandlers &
   AuthHandlers;
 
 export type HandlerFunctions = Handlers[keyof Handlers];

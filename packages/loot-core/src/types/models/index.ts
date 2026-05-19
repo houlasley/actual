@@ -26,3 +26,4 @@ export type * from './transaction-filter';
 export type * from './user';
 export type * from './user-access';
 export type * from './tags';
+export type * from './loan';
