@@ -281,7 +281,8 @@ export function CashFlowGraph({
           <Line
             type="monotone"
             dataKey="balance"
-            dot={false}
+            dot={{ r: 3, fill: theme.pageTextLight, stroke: theme.pageTextLight }}
+            activeDot={{ r: 5 }}
             hide={!showBalance}
             stroke={theme.pageTextLight}
             strokeWidth={2}
@@ -292,7 +293,14 @@ export function CashFlowGraph({
             <Line
               type="monotone"
               dataKey="projectedBalance"
-              dot={false}
+              dot={{
+                r: 3,
+                fill: theme.pageTextLight,
+                stroke: theme.pageTextLight,
+                fillOpacity: PROJECTED_OPACITY,
+                strokeOpacity: PROJECTED_OPACITY,
+              }}
+              activeDot={{ r: 5 }}
               hide={!showBalance}
               stroke={theme.pageTextLight}
               strokeWidth={2}
