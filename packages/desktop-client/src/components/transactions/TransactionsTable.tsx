@@ -1,9 +1,11 @@
 import {
+  createContext,
   createElement,
   createRef,
   forwardRef,
   memo,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -13,6 +15,7 @@ import type {
   CSSProperties,
   ForwardedRef,
   KeyboardEvent,
+  MouseEvent as ReactMouseEvent,
   ReactNode,
   Ref,
   RefObject,
@@ -148,6 +151,95 @@ import type {
 } from './table/utils';
 import { TransactionMenu } from './TransactionMenu';
 
+type ColumnWidths = {
+  date: number;
+  payment: number;
+  deposit: number;
+  balance: number;
+};
+
+const DEFAULT_COLUMN_WIDTHS: ColumnWidths = {
+  date: 110,
+  payment: 100,
+  deposit: 100,
+  balance: 103,
+};
+
+type ColumnWidthsContextType = {
+  widths: ColumnWidths;
+  onResize: (col: keyof ColumnWidths, width: number) => void;
+  onReset: (col: keyof ColumnWidths) => void;
+};
+
+const ColumnWidthsContext = createContext<ColumnWidthsContextType>({
+  widths: DEFAULT_COLUMN_WIDTHS,
+  onResize: () => {},
+  onReset: () => {},
+});
+
+function ColumnResizeHandle({ column }: { column: keyof ColumnWidths }) {
+  const { widths, onResize, onReset } = useContext(ColumnWidthsContext);
+  const startX = useRef<number | null>(null);
+  const startWidth = useRef<number>(DEFAULT_COLUMN_WIDTHS[column]);
+
+  function handleMouseDown(e: ReactMouseEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    startX.current = e.clientX;
+    startWidth.current = widths[column];
+
+    function handleMouseMove(moveEvent: MouseEvent) {
+      if (startX.current === null) return;
+      const delta = moveEvent.clientX - startX.current;
+      const newWidth = Math.max(40, startWidth.current + delta);
+      onResize(column, newWidth);
+    }
+
+    function handleMouseUp() {
+      startX.current = null;
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    }
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  }
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        right: 0,
+        top: 0,
+        bottom: 0,
+        width: 6,
+        cursor: 'col-resize',
+        zIndex: 10,
+        userSelect: 'none',
+      }}
+      onMouseDown={handleMouseDown}
+      onDoubleClick={e => {
+        e.stopPropagation();
+        onReset(column);
+      }}
+    />
+  );
+}
+
+function ChildDatePlaceholder() {
+  const { widths } = useContext(ColumnWidthsContext);
+  return (
+    <Field
+      width={widths.date}
+      style={{
+        width: widths.date,
+        backgroundColor: theme.tableRowBackgroundHover,
+        border: 0,
+      }}
+    />
+  );
+}
+
 type TransactionHeaderProps = {
   hasSelected: boolean;
   showAccount: boolean;
@@ -234,6 +326,7 @@ const TransactionHeader = memo(
           marginLeft={-5}
           id="date"
           icon={field === 'date' ? ascDesc : 'clickable'}
+          resizable
           onClick={() =>
             onSort('date', selectAscDesc(field, ascDesc, 'date', 'desc'))
           }
@@ -296,6 +389,7 @@ const TransactionHeader = memo(
           marginRight={-5}
           id="payment"
           icon={field === 'payment' ? ascDesc : 'clickable'}
+          resizable
           onClick={() =>
             onSort('payment', selectAscDesc(field, ascDesc, 'payment', 'asc'))
           }
@@ -307,6 +401,7 @@ const TransactionHeader = memo(
           marginRight={-5}
           id="deposit"
           icon={field === 'deposit' ? ascDesc : 'clickable'}
+          resizable
           onClick={() =>
             onSort('deposit', selectAscDesc(field, ascDesc, 'deposit', 'desc'))
           }
@@ -318,6 +413,7 @@ const TransactionHeader = memo(
             alignItems="flex-end"
             marginRight={-5}
             id="balance"
+            resizable
           />
         )}
         {showCleared && (
@@ -436,6 +532,7 @@ type HeaderCellProps = {
   id: string;
   icon?: 'asc' | 'desc' | 'clickable';
   onClick?: () => void;
+  resizable?: boolean;
 } & Pick<CSSProperties, 'width' | 'alignItems' | 'marginLeft' | 'marginRight'>;
 
 function HeaderCell({
@@ -447,8 +544,15 @@ function HeaderCell({
   marginRight,
   icon,
   onClick,
+  resizable,
 }: HeaderCellProps) {
-  const style = {
+  const { widths } = useContext(ColumnWidthsContext);
+  const resolvedWidth =
+    resizable && id in DEFAULT_COLUMN_WIDTHS
+      ? widths[id as keyof ColumnWidths]
+      : width;
+
+  const contentStyle = {
     whiteSpace: 'nowrap' as CSSProperties['whiteSpace'],
     overflow: 'hidden',
     textOverflow: 'ellipsis',
@@ -458,32 +562,46 @@ function HeaderCell({
     marginRight,
   };
 
+  const wrapperStyle: CSSProperties =
+    resolvedWidth === 'flex'
+      ? { flex: 1, flexBasis: 0, position: 'relative' }
+      : { width: resolvedWidth, position: 'relative' };
+
   return (
-    <CustomCell
-      width={width}
-      name={id}
-      alignItems={alignItems}
-      value={value}
-      style={{
-        borderTopWidth: 0,
-        borderBottomWidth: 0,
-      }}
-      unexposedContent={({ value: cellValue }) =>
-        onClick ? (
-          <Button variant="bare" onPress={onClick} style={style}>
-            <UnexposedCellContent value={cellValue} />
-            {icon === 'asc' && (
-              <SvgArrowDown width={10} height={10} style={{ marginLeft: 5 }} />
-            )}
-            {icon === 'desc' && (
-              <SvgArrowUp width={10} height={10} style={{ marginLeft: 5 }} />
-            )}
-          </Button>
-        ) : (
-          <Text style={style}>{cellValue}</Text>
-        )
-      }
-    />
+    <View style={wrapperStyle}>
+      <CustomCell
+        width="flex"
+        name={id}
+        alignItems={alignItems}
+        value={value}
+        style={{
+          borderTopWidth: 0,
+          borderBottomWidth: 0,
+        }}
+        unexposedContent={({ value: cellValue }) =>
+          onClick ? (
+            <Button variant="bare" onPress={onClick} style={contentStyle}>
+              <UnexposedCellContent value={cellValue} />
+              {icon === 'asc' && (
+                <SvgArrowDown
+                  width={10}
+                  height={10}
+                  style={{ marginLeft: 5 }}
+                />
+              )}
+              {icon === 'desc' && (
+                <SvgArrowUp width={10} height={10} style={{ marginLeft: 5 }} />
+              )}
+            </Button>
+          ) : (
+            <Text style={contentStyle}>{cellValue}</Text>
+          )
+        }
+      />
+      {resizable && id in DEFAULT_COLUMN_WIDTHS && (
+        <ColumnResizeHandle column={id as keyof ColumnWidths} />
+      )}
+    </View>
   );
 }
 
@@ -963,6 +1081,7 @@ const Transaction = memo(function Transaction({
   onDrop,
 }: TransactionProps) {
   const { t } = useTranslation();
+  const { widths: columnWidths } = useContext(ColumnWidthsContext);
 
   const dispatch = useDispatch();
   const dispatchSelected = useSelectedDispatch();
@@ -1403,15 +1522,7 @@ const Transaction = memo(function Transaction({
         )}
 
         {isChild && (
-          <Field
-            /* Checkmark blank placeholder for Child transaction */
-            width={110}
-            style={{
-              width: 110,
-              backgroundColor: theme.tableRowBackgroundHover,
-              border: 0, // known z-order issue, bottom border for parent transaction hidden
-            }}
-          />
+          <ChildDatePlaceholder />
         )}
 
         {isChild && showAccount && (
@@ -1473,7 +1584,7 @@ const Transaction = memo(function Transaction({
           <CustomCell
             /* Date field for non-child transaction */
             name="date"
-            width={110}
+            width={columnWidths.date}
             textAlign="flex"
             exposed={focusedField === 'date'}
             value={date}
@@ -1789,7 +1900,7 @@ const Transaction = memo(function Transaction({
         <InputCell
           /* Debit field for all transactions */
           type="input"
-          width={100}
+          width={columnWidths.payment}
           name="debit"
           exposed={focusedField === 'debit'}
           focused={focusedField === 'debit'}
@@ -1820,7 +1931,7 @@ const Transaction = memo(function Transaction({
         <InputCell
           /* Credit field for all transactions */
           type="input"
-          width={100}
+          width={columnWidths.deposit}
           name="credit"
           exposed={focusedField === 'credit'}
           focused={focusedField === 'credit'}
@@ -1864,7 +1975,7 @@ const Transaction = memo(function Transaction({
                   : theme.numberPositive,
             }}
             style={{ ...styles.tnum, ...amountStyle }}
-            width={103}
+            width={columnWidths.balance}
             textAlign="right"
             privacyFilter
           />
@@ -2683,6 +2794,36 @@ export const TransactionTable = forwardRef(
 
     const dispatch = useDispatch();
     const [showHiddenCategories] = useLocalPref('budget.showHiddenCategories');
+    const [savedColumnWidths, setSavedColumnWidths] = useLocalPref(
+      'transaction-column-widths',
+    );
+    const columnWidths: ColumnWidths = useMemo(
+      () => ({ ...DEFAULT_COLUMN_WIDTHS, ...(savedColumnWidths ?? {}) }),
+      [savedColumnWidths],
+    );
+    const onResizeColumn = useCallback(
+      (col: keyof ColumnWidths, width: number) => {
+        setSavedColumnWidths({ ...(savedColumnWidths ?? {}), [col]: width });
+      },
+      [savedColumnWidths, setSavedColumnWidths],
+    );
+    const onResetColumn = useCallback(
+      (col: keyof ColumnWidths) => {
+        setSavedColumnWidths({
+          ...(savedColumnWidths ?? {}),
+          [col]: DEFAULT_COLUMN_WIDTHS[col],
+        });
+      },
+      [savedColumnWidths, setSavedColumnWidths],
+    );
+    const columnWidthsContextValue = useMemo(
+      () => ({
+        widths: columnWidths,
+        onResize: onResizeColumn,
+        onReset: onResetColumn,
+      }),
+      [columnWidths, onResizeColumn, onResetColumn],
+    );
     const [newTransactions, setNewTransactions] = useState<TransactionEntity[]>(
       [],
     );
@@ -3412,9 +3553,10 @@ export const TransactionTable = forwardRef(
     const allSchedulesQuery = useMemo(() => q('schedules').select('*'), []);
 
     return (
-      <DisplayPayeeProvider transactions={displayPayeeTransactions}>
-        <SchedulesProvider query={allSchedulesQuery}>
-          <TransactionTableInner
+      <ColumnWidthsContext.Provider value={columnWidthsContextValue}>
+        <DisplayPayeeProvider transactions={displayPayeeTransactions}>
+          <SchedulesProvider query={allSchedulesQuery}>
+            <TransactionTableInner
             tableRef={mergedRef}
             listContainerRef={listContainerRef}
             {...props}
@@ -3454,9 +3596,10 @@ export const TransactionTable = forwardRef(
             draggedDate={draggedDate}
             onDragChange={onDragChange}
             onDrop={onDrop}
-          />
-        </SchedulesProvider>
-      </DisplayPayeeProvider>
+            />
+          </SchedulesProvider>
+        </DisplayPayeeProvider>
+      </ColumnWidthsContext.Provider>
     );
   },
 );

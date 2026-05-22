@@ -93,6 +93,7 @@ export type LocalPrefs = Partial<{
   reportsViewLabel: boolean;
   sidebarWidth: number;
   'mobile.showSpentColumn': boolean;
+  'transaction-column-widths': Record<string, number>;
 }>;
 
 export type Theme = 'light' | 'dark' | 'auto' | 'midnight' | string;
