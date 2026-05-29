@@ -662,6 +662,18 @@ export type Modal =
         templates: Template[];
         cleanup: CleanupTemplate[];
       };
+    }
+  | {
+      name: 'loan-profile-edit';
+      options: {
+        accountId: AccountEntity['id'];
+      };
+    }
+  | {
+      name: 'loan-amortization-view';
+      options: {
+        accountId: AccountEntity['id'];
+      };
     };
 
 type OpenAccountCloseModalPayload = {
