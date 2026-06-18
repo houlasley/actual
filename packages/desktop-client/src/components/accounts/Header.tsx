@@ -753,7 +753,9 @@ type AccountMenuProps = {
       | 'remove-sorting'
       | 'toggle-cleared'
       | 'toggle-reconciled'
-      | 'toggle-net-worth-chart',
+      | 'toggle-net-worth-chart'
+      | 'manage-loan'
+      | 'view-amortization',
   ) => void;
 };
 
@@ -815,6 +817,8 @@ function AccountMenu({
             : t('Show reconciled transactions'),
         },
         { name: 'export', text: t('Export') },
+        { name: 'manage-loan', text: t('Manage loan') },
+        { name: 'view-amortization', text: t('View amortization schedule') },
         ...(account && !account.closed
           ? canSync
             ? [

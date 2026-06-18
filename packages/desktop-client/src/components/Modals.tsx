@@ -50,6 +50,8 @@ import { GoCardlessExternalMsgModal } from './modals/GoCardlessExternalMsgModal'
 import { GoCardlessInitialiseModal } from './modals/GoCardlessInitialiseModal';
 import { HoldBufferModal } from './modals/HoldBufferModal';
 import { ImportTransactionsModal } from './modals/ImportTransactionsModal';
+import { LoanAmortizationModal } from './modals/LoanAmortizationModal';
+import { LoanProfileEditModal } from './modals/LoanProfileEditModal';
 import { InvestmentTransactionModal } from './modals/InvestmentTransactionModal';
 import { KeyboardShortcutModal } from './modals/KeyboardShortcutModal';
 import { LoadBackupModal } from './modals/LoadBackupModal';
@@ -436,6 +438,12 @@ export function Modals() {
 
         case 'enable-password-auth':
           return <PasswordEnableModal key={key} {...modal.options} />;
+
+        case 'loan-profile-edit':
+          return <LoanProfileEditModal key={key} {...modal.options} />;
+
+        case 'loan-amortization-view':
+          return <LoanAmortizationModal key={key} {...modal.options} />;
 
         default:
           throw new Error('Unknown modal');

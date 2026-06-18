@@ -28,7 +28,9 @@ import { useAccount } from '#hooks/useAccount';
 import { useAccounts } from '#hooks/useAccounts';
 import { useNotes } from '#hooks/useNotes';
 import { useSyncedPref } from '#hooks/useSyncedPref';
+import { pushModal } from '#modals/modalsSlice';
 import type { Modal as ModalType } from '#modals/modalsSlice';
+import { useDispatch } from '#redux';
 
 type AccountMenuModalProps = Extract<
   ModalType,
@@ -46,6 +48,7 @@ export function AccountMenuModal({
   onToggleReconciled,
 }: AccountMenuModalProps) {
   const { t } = useTranslation();
+  const dispatch = useDispatch();
   const account = useAccount(accountId);
   const { data: accounts = [] } = useAccounts();
   const originalNotes = useNotes(`account-${accountId}`);
@@ -187,6 +190,36 @@ export function AccountMenuModal({
                   style={{ paddingRight: 5 }}
                 />
                 <Trans>Edit notes</Trans>
+              </Button>
+              <Button
+                style={buttonStyle}
+                onPress={() => {
+                  dispatch(
+                    pushModal({
+                      modal: {
+                        name: 'loan-profile-edit',
+                        options: { accountId },
+                      },
+                    }),
+                  );
+                }}
+              >
+                <Trans>Manage loan</Trans>
+              </Button>
+              <Button
+                style={buttonStyle}
+                onPress={() => {
+                  dispatch(
+                    pushModal({
+                      modal: {
+                        name: 'loan-amortization-view',
+                        options: { accountId },
+                      },
+                    }),
+                  );
+                }}
+              >
+                <Trans>View amortization</Trans>
               </Button>
             </View>
           </View>

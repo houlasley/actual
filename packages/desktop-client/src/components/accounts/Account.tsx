@@ -782,7 +782,9 @@ class AccountInternal extends PureComponent<
       | 'remove-sorting'
       | 'toggle-cleared'
       | 'toggle-reconciled'
-      | 'toggle-net-worth-chart',
+      | 'toggle-net-worth-chart'
+      | 'manage-loan'
+      | 'view-amortization',
   ) => {
     const accountId = this.props.accountId!;
     const account = this.props.accounts.find(
@@ -890,6 +892,26 @@ class AccountInternal extends PureComponent<
         } else {
           this.props.setShowNetWorthChart(true);
         }
+        break;
+      case 'manage-loan':
+        this.props.dispatch(
+          pushModal({
+            modal: {
+              name: 'loan-profile-edit',
+              options: { accountId },
+            },
+          }),
+        );
+        break;
+      case 'view-amortization':
+        this.props.dispatch(
+          pushModal({
+            modal: {
+              name: 'loan-amortization-view',
+              options: { accountId },
+            },
+          }),
+        );
         break;
       default:
     }
