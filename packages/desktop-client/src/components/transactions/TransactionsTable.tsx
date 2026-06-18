@@ -1,9 +1,11 @@
 import {
+  createContext,
   createElement,
   createRef,
   forwardRef,
   memo,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -148,6 +150,80 @@ import type {
 } from './table/utils';
 import { TransactionMenu } from './TransactionMenu';
 
+type ColumnWidths = {
+  date: number;
+  payment: number;
+  deposit: number;
+  balance: number;
+};
+
+const DEFAULT_COLUMN_WIDTHS: ColumnWidths = {
+  date: 110,
+  payment: 100,
+  deposit: 100,
+  balance: 103,
+};
+
+type ColumnWidthsContextValue = {
+  widths: ColumnWidths;
+  onResize: (column: keyof ColumnWidths, width: number) => void;
+  onReset: (column: keyof ColumnWidths) => void;
+};
+
+const ColumnWidthsContext = createContext<ColumnWidthsContextValue>({
+  widths: DEFAULT_COLUMN_WIDTHS,
+  onResize: () => {},
+  onReset: () => {},
+});
+
+type ColumnResizeHandleProps = {
+  column: keyof ColumnWidths;
+};
+
+function ColumnResizeHandle({ column }: ColumnResizeHandleProps) {
+  const { widths, onResize, onReset } = useContext(ColumnWidthsContext);
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        right: 0,
+        top: 0,
+        bottom: 0,
+        width: 6,
+        cursor: 'col-resize',
+        zIndex: 10,
+      }}
+      onMouseDown={e => {
+        e.preventDefault();
+        e.stopPropagation();
+        const startX = e.clientX;
+        const startWidth = widths[column];
+
+        const handleMouseMove = (moveEvent: MouseEvent) => {
+          const newWidth = Math.max(
+            40,
+            startWidth + moveEvent.clientX - startX,
+          );
+          onResize(column, newWidth);
+        };
+
+        const handleMouseUp = () => {
+          document.removeEventListener('mousemove', handleMouseMove);
+          document.removeEventListener('mouseup', handleMouseUp);
+        };
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+      }}
+      onDoubleClick={e => {
+        e.stopPropagation();
+        onReset(column);
+      }}
+    />
+  );
+}
+
 type TransactionHeaderProps = {
   hasSelected: boolean;
   showAccount: boolean;
@@ -233,6 +309,7 @@ const TransactionHeader = memo(
           alignItems="flex"
           marginLeft={-5}
           id="date"
+          column="date"
           icon={field === 'date' ? ascDesc : 'clickable'}
           onClick={() =>
             onSort('date', selectAscDesc(field, ascDesc, 'date', 'desc'))
@@ -295,6 +372,7 @@ const TransactionHeader = memo(
           alignItems="flex-end"
           marginRight={-5}
           id="payment"
+          column="payment"
           icon={field === 'payment' ? ascDesc : 'clickable'}
           onClick={() =>
             onSort('payment', selectAscDesc(field, ascDesc, 'payment', 'asc'))
@@ -306,6 +384,7 @@ const TransactionHeader = memo(
           alignItems="flex-end"
           marginRight={-5}
           id="deposit"
+          column="deposit"
           icon={field === 'deposit' ? ascDesc : 'clickable'}
           onClick={() =>
             onSort('deposit', selectAscDesc(field, ascDesc, 'deposit', 'desc'))
@@ -318,6 +397,7 @@ const TransactionHeader = memo(
             alignItems="flex-end"
             marginRight={-5}
             id="balance"
+            column="balance"
           />
         )}
         {showCleared && (
@@ -436,6 +516,7 @@ type HeaderCellProps = {
   id: string;
   icon?: 'asc' | 'desc' | 'clickable';
   onClick?: () => void;
+  column?: keyof ColumnWidths;
 } & Pick<CSSProperties, 'width' | 'alignItems' | 'marginLeft' | 'marginRight'>;
 
 function HeaderCell({
@@ -447,7 +528,11 @@ function HeaderCell({
   marginRight,
   icon,
   onClick,
+  column,
 }: HeaderCellProps) {
+  const { widths } = useContext(ColumnWidthsContext);
+  const effectiveWidth = column ? widths[column] : width;
+
   const style = {
     whiteSpace: 'nowrap' as CSSProperties['whiteSpace'],
     overflow: 'hidden',
@@ -460,7 +545,7 @@ function HeaderCell({
 
   return (
     <CustomCell
-      width={width}
+      width={effectiveWidth}
       name={id}
       alignItems={alignItems}
       value={value}
@@ -468,21 +553,32 @@ function HeaderCell({
         borderTopWidth: 0,
         borderBottomWidth: 0,
       }}
-      unexposedContent={({ value: cellValue }) =>
-        onClick ? (
-          <Button variant="bare" onPress={onClick} style={style}>
-            <UnexposedCellContent value={cellValue} />
-            {icon === 'asc' && (
-              <SvgArrowDown width={10} height={10} style={{ marginLeft: 5 }} />
-            )}
-            {icon === 'desc' && (
-              <SvgArrowUp width={10} height={10} style={{ marginLeft: 5 }} />
-            )}
-          </Button>
-        ) : (
-          <Text style={style}>{cellValue}</Text>
-        )
-      }
+      unexposedContent={({ value: cellValue }) => (
+        <>
+          {onClick ? (
+            <Button variant="bare" onPress={onClick} style={style}>
+              <UnexposedCellContent value={cellValue} />
+              {icon === 'asc' && (
+                <SvgArrowDown
+                  width={10}
+                  height={10}
+                  style={{ marginLeft: 5 }}
+                />
+              )}
+              {icon === 'desc' && (
+                <SvgArrowUp
+                  width={10}
+                  height={10}
+                  style={{ marginLeft: 5 }}
+                />
+              )}
+            </Button>
+          ) : (
+            <Text style={style}>{cellValue}</Text>
+          )}
+          {column && <ColumnResizeHandle column={column} />}
+        </>
+      )}
     />
   );
 }
@@ -967,6 +1063,7 @@ const Transaction = memo(function Transaction({
   const dispatch = useDispatch();
   const dispatchSelected = useSelectedDispatch();
   const triggerRef = useRef(null);
+  const { widths: columnWidths } = useContext(ColumnWidthsContext);
 
   const [prevShowZero, setPrevShowZero] = useState(showZeroInDeposit);
   const [prevTransaction, setPrevTransaction] = useState(originalTransaction);
@@ -1405,9 +1502,9 @@ const Transaction = memo(function Transaction({
         {isChild && (
           <Field
             /* Checkmark blank placeholder for Child transaction */
-            width={110}
+            width={columnWidths.date}
             style={{
-              width: 110,
+              width: columnWidths.date,
               backgroundColor: theme.tableRowBackgroundHover,
               border: 0, // known z-order issue, bottom border for parent transaction hidden
             }}
@@ -1473,7 +1570,7 @@ const Transaction = memo(function Transaction({
           <CustomCell
             /* Date field for non-child transaction */
             name="date"
-            width={110}
+            width={columnWidths.date}
             textAlign="flex"
             exposed={focusedField === 'date'}
             value={date}
@@ -1789,7 +1886,7 @@ const Transaction = memo(function Transaction({
         <InputCell
           /* Debit field for all transactions */
           type="input"
-          width={100}
+          width={columnWidths.payment}
           name="debit"
           exposed={focusedField === 'debit'}
           focused={focusedField === 'debit'}
@@ -1820,7 +1917,7 @@ const Transaction = memo(function Transaction({
         <InputCell
           /* Credit field for all transactions */
           type="input"
-          width={100}
+          width={columnWidths.deposit}
           name="credit"
           exposed={focusedField === 'credit'}
           focused={focusedField === 'credit'}
@@ -1864,7 +1961,7 @@ const Transaction = memo(function Transaction({
                   : theme.numberPositive,
             }}
             style={{ ...styles.tnum, ...amountStyle }}
-            width={103}
+            width={columnWidths.balance}
             textAlign="right"
             privacyFilter
           />
@@ -2683,6 +2780,34 @@ export const TransactionTable = forwardRef(
 
     const dispatch = useDispatch();
     const [showHiddenCategories] = useLocalPref('budget.showHiddenCategories');
+    const [savedColumnWidths, setSavedColumnWidths] = useLocalPref(
+      'transaction-column-widths',
+    );
+
+    const columnWidths = useMemo<ColumnWidths>(
+      () => ({
+        ...DEFAULT_COLUMN_WIDTHS,
+        ...(savedColumnWidths ?? {}),
+      }),
+      [savedColumnWidths],
+    );
+
+    const onResizeColumn = useCallback(
+      (column: keyof ColumnWidths, width: number) => {
+        setSavedColumnWidths({ ...columnWidths, [column]: width });
+      },
+      [columnWidths, setSavedColumnWidths],
+    );
+
+    const onResetColumn = useCallback(
+      (column: keyof ColumnWidths) => {
+        setSavedColumnWidths({
+          ...columnWidths,
+          [column]: DEFAULT_COLUMN_WIDTHS[column],
+        });
+      },
+      [columnWidths, setSavedColumnWidths],
+    );
     const [newTransactions, setNewTransactions] = useState<TransactionEntity[]>(
       [],
     );
@@ -3412,51 +3537,59 @@ export const TransactionTable = forwardRef(
     const allSchedulesQuery = useMemo(() => q('schedules').select('*'), []);
 
     return (
-      <DisplayPayeeProvider transactions={displayPayeeTransactions}>
-        <SchedulesProvider query={allSchedulesQuery}>
-          <TransactionTableInner
-            tableRef={mergedRef}
-            listContainerRef={listContainerRef}
-            {...props}
-            transactions={transactionsWithExpandedSplits}
-            transactionMap={transactionMap}
-            transactionsByParent={transactionsByParent}
-            transferAccountsByTransaction={transferAccountsByTransaction}
-            selectedItems={selectedItems}
-            isExpanded={splitsExpanded.isExpanded}
-            onSave={onSave}
-            onDelete={onDelete}
-            onBatchDelete={onBatchDelete}
-            onBatchDuplicate={onBatchDuplicate}
-            onBatchLinkSchedule={onBatchLinkSchedule}
-            onBatchUnlinkSchedule={onBatchUnlinkSchedule}
-            onCreateRule={onCreateRule}
-            onScheduleAction={onScheduleAction}
-            onMakeAsNonSplitTransactions={onMakeAsNonSplitTransactions}
-            onSplit={onSplit}
-            onCheckNewEnter={onCheckNewEnter}
-            onCheckEnter={onCheckEnter}
-            onAddTemporary={onAddTemporary}
-            onAddAndCloseTemporary={onAddAndCloseTemporary}
-            onAddSplit={onAddSplit}
-            onDistributeRemainder={onDistributeRemainder}
-            onCloseAddTransaction={onCloseAddTransaction}
-            onToggleSplit={onToggleSplit}
-            newTransactions={newTransactions ?? []}
-            tableNavigator={tableNavigator}
-            newNavigator={newNavigator}
-            showSelection={props.showSelection}
-            allowSplitTransaction={props.allowSplitTransaction}
-            showHiddenCategories={showHiddenCategories}
-            canDrag={canDrag}
-            draggedId={draggedId}
-            draggedParentId={draggedParentId}
-            draggedDate={draggedDate}
-            onDragChange={onDragChange}
-            onDrop={onDrop}
-          />
-        </SchedulesProvider>
-      </DisplayPayeeProvider>
+      <ColumnWidthsContext.Provider
+        value={{
+          widths: columnWidths,
+          onResize: onResizeColumn,
+          onReset: onResetColumn,
+        }}
+      >
+        <DisplayPayeeProvider transactions={displayPayeeTransactions}>
+          <SchedulesProvider query={allSchedulesQuery}>
+            <TransactionTableInner
+              tableRef={mergedRef}
+              listContainerRef={listContainerRef}
+              {...props}
+              transactions={transactionsWithExpandedSplits}
+              transactionMap={transactionMap}
+              transactionsByParent={transactionsByParent}
+              transferAccountsByTransaction={transferAccountsByTransaction}
+              selectedItems={selectedItems}
+              isExpanded={splitsExpanded.isExpanded}
+              onSave={onSave}
+              onDelete={onDelete}
+              onBatchDelete={onBatchDelete}
+              onBatchDuplicate={onBatchDuplicate}
+              onBatchLinkSchedule={onBatchLinkSchedule}
+              onBatchUnlinkSchedule={onBatchUnlinkSchedule}
+              onCreateRule={onCreateRule}
+              onScheduleAction={onScheduleAction}
+              onMakeAsNonSplitTransactions={onMakeAsNonSplitTransactions}
+              onSplit={onSplit}
+              onCheckNewEnter={onCheckNewEnter}
+              onCheckEnter={onCheckEnter}
+              onAddTemporary={onAddTemporary}
+              onAddAndCloseTemporary={onAddAndCloseTemporary}
+              onAddSplit={onAddSplit}
+              onDistributeRemainder={onDistributeRemainder}
+              onCloseAddTransaction={onCloseAddTransaction}
+              onToggleSplit={onToggleSplit}
+              newTransactions={newTransactions ?? []}
+              tableNavigator={tableNavigator}
+              newNavigator={newNavigator}
+              showSelection={props.showSelection}
+              allowSplitTransaction={props.allowSplitTransaction}
+              showHiddenCategories={showHiddenCategories}
+              canDrag={canDrag}
+              draggedId={draggedId}
+              draggedParentId={draggedParentId}
+              draggedDate={draggedDate}
+              onDragChange={onDragChange}
+              onDrop={onDrop}
+            />
+          </SchedulesProvider>
+        </DisplayPayeeProvider>
+      </ColumnWidthsContext.Provider>
     );
   },
 );
